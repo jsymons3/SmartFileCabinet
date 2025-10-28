@@ -1,0 +1,10 @@
+openai==2.1.0
+pymupdf
+pillow
+python-multipart
+fastapi
+uvicorn
+pydantic
+pypdf
+reportlab
+pytest

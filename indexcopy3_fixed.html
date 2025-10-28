@@ -1,0 +1,1850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Squid Business Platform — Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack.min.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack-extra.min.css" />
+<script src="https://cdn.jsdelivr.net/npm/gridstack@10.1.2/dist/gridstack-all.js"></script>
+<style>
+:root{
+  /* Theme */
+  --bg:#0f1a24;              /* page bg */
+  --bg2:#1b2a36;             /* deep accent for banner */
+  --panel:#374351;           /* card surface */
+  --text:#d1e8f0;            /* body */
+  --muted:#b9cdd4;           /* secondary text */
+  --stroke:#60768b;          /* border base */
+  --glint:#f1f9fb;           /* highlight */
+  --accent:#73bbc9;          /* cyan accent */
+  --ok:#66e0a3;
+  --warn:#ffd16a;
+  --radius:18px;
+}
+
+    /* Grid row sizing (ADD THESE) */
+--row: 200px;
+--gutter: 24px;
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:
+    radial-gradient(1400px 900px at 15% -10%, #344a5d, #293847 40%, #1f2f3d 72%),
+    #293847;
+  color:var(--text);
+  font-family:"Ubuntu","Inter","Segoe UI",-apple-system,system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  padding:24px;
+}
+
+/* ===== HEADER ===== */
+.header{
+  display:flex; flex-direction:column; align-items:center; gap:18px; margin:0 auto 18px; max-width:1200px;
+}
+.brand{ display:flex; align-items:center; gap:12px; }
+
+/* Badge + glow; centers your SVG inside */
+.logo-badge{
+  width:72px; height:72px; border-radius:50%;
+  display:grid; place-items:center;
+  background: radial-gradient(circle at center, rgba(115,187,201,.2) 0%, rgba(115,187,201,.2) 50%, transparent 100%);
+  box-shadow: 
+    0 0 40px 12px rgba(115,187,201,.12),
+    0 0 60px 20px rgba(115,187,201,.08),
+    0 0 80px 30px rgba(115,187,201,.04);
+  position:relative; overflow:visible;
+}
+
+.logo-badge img{
+  width:100%; height:100%; display:block;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.35));
+}
+.brand h1{ font:700 20px/1 Ubuntu,sans-serif; letter-spacing:.02em; margin:0; }
+.brand small{ display:block; color:var(--muted); font-size:12px; margin-top:2px; letter-spacing:.05em }
+
+.tabs{
+  display:flex; gap:8px; background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  padding:6px; border-radius:28px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+}
+.tab{ padding:8px 14px; font:600 12px/1 Ubuntu; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--muted); border-radius:999px; cursor:pointer; user-select:none;
+  transition: all 0.3s ease;
+}
+.tab.active{ color:var(--text); background:rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+.tab:hover{
+  color:var(--text);
+  background:rgba(115,187,201,.15);
+  box-shadow: 
+    inset 0 0 0 1px rgba(115,187,201,.3),
+    0 0 15px rgba(115,187,201,.4),
+    0 0 25px rgba(115,187,201,.2);
+  transition: all 0.3s ease;
+}
+.tab.active:hover{
+  background:rgba(115,187,201,.2);
+  box-shadow: 
+    inset 0 0 0 1px rgba(115,187,201,.4),
+    0 0 20px rgba(115,187,201,.5);
+}
+.settings{ margin-left:8px; font:600 11px Ubuntu; opacity:.75; padding:6px 10px; border-radius:10px;
+  background:rgba(255,255,255,.06); }
+
+/* ===== GRID ===== */
+    /* .grid{
+  max-width:1200px; margin:0 auto;
+  display:grid; gap:24px;
+  grid-template-columns: repeat(12, 1fr);
+} */
+    
+    /* ===== GRID Updated ===== */
+    .grid{
+      max-width:1200px; margin:0 auto;
+    }
+
+    .grid-stack {
+      background: transparent;
+    }
+
+    .grid-stack-item {
+      overflow: visible !important;
+    }
+
+    .grid-stack-item-content {
+      overflow: visible !important;
+      height: 100% !important;
+    }
+
+    /* Force all gs-h="1" widgets to exact same height */
+    /*.grid-stack-item[gs-h="1"] {
+      height: 224px !important; /* 200px cell + 24px margin */
+    /* }
+
+     .grid-stack-item[gs-h="1"] .widget {
+      height: 200px !important;
+      min-height: 200px;
+      max-height: 200px;
+    }
+
+    /* Force all gs-h="2" widgets to exact height */
+    /* .grid-stack-item[gs-h="2"] {
+      height: 448px !important; /* (200px * 2) + 24px margin */
+    /*
+    }
+
+    .grid-stack-item[gs-h="2"] .widget {
+      height: 424px !important;
+      min-height: 424px;
+      max-height: 424px;
+    }
+
+    
+    /* Outer GridStack item height */
+    .grid-stack-item[gs-h="1"]{ height: calc(var(--row) + var(--gutter)) !important; }
+    .grid-stack-item[gs-h="2"]{ height: calc(var(--row)*2 + var(--gutter)) !important; }
+
+    /* Inner card height */
+    .grid-stack-item[gs-h="1"] .widget{
+      height: var(--row) !important;
+      min-height: var(--row);
+      max-height: var(--row);
+    }
+    .grid-stack-item[gs-h="2"] .widget{
+      height: calc(var(--row)*2 - var(--gutter)) !important;
+      min-height: calc(var(--row)*2 - var(--gutter));
+      max-height: calc(var(--row)*2 - var(--gutter));
+    }
+    
+    /* ===== WIDGET (shared) ===== */
+    /*.widget{
+  position:relative; overflow:hidden; border-radius:calc(var(--radius) + 2px);
+  background: rgba(55, 67, 81, 0.45);
+  backdrop-filter: blur(12px);
+}
+.widget{
+  position:relative; overflow:visible; border-radius:calc(var(--radius) + 2px);
+  background: rgba(55, 67, 81, 0.45);
+  backdrop-filter: blur(12px);
+  transition: all 0.3s ease;
+}*/
+.widget{
+  position: relative;
+  overflow: hidden;            /* or visible, but be consistent */
+  border-radius: calc(var(--radius) + 2px);
+  background: rgba(55,67,81,.45);
+  backdrop-filter: blur(12px);
+  transition: all .3s ease;
+}
+
+.widget .lip{ position:absolute; inset:0px; border-radius: calc(var(--radius) + 2px);
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.12) inset; pointer-events:none; }
+
+.widget .topbar{
+  position:absolute; top:0; left:0; right:0; height:26px;
+  background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  display:flex; align-items:center; justify-content:space-between; padding:0 10px 0 14px;
+}
+.widget .title{ font:700 12px/1 Ubuntu; letter-spacing:.045em; text-transform:uppercase; opacity:.95; }
+.widget .dots{ display:flex; gap:5px; }
+.widget .dots i{ width:4px; height:4px; border-radius:50%; background:rgba(255,255,255,.32); display:block; }
+.widget .content{ padding: 34px 14px 12px 14px; }
+
+.widget .status{
+  font:700 10px Ubuntu; letter-spacing:.1em; text-transform:uppercase; color:#032d1a;
+  background: linear-gradient(180deg, #8ff0c2, #4fd59a); padding:4px 8px; border-radius:999px;
+  box-shadow: 0 4px 12px rgba(79,213,154,.35); display:inline-block;
+}
+.widget {
+  position:relative; overflow:hidden; border-radius:calc(var(--radius) + 2px);
+  background: rgba(55, 67, 81, 0.45);
+  backdrop-filter: blur(12px);
+
+  transition: all 0.05s ease;
+}
+
+.widget:hover {
+  background: rgba(65, 77, 91, 0.55);
+  box-shadow:
+    0 0 0 2px rgba(115,187,201,.4) inset;
+  transform: translateY(-2px);
+}
+
+.widget:hover .lip {
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,.5) inset,
+    0 0 15px rgba(115,187,201,.4) inset;
+}
+
+.widget .lucaflect{
+  position:absolute;
+  width:96px;
+  height:2px;
+  pointer-events:none;
+  z-index:100;
+  opacity:0.4;
+}
+
+/* Top lucaflect - 35% from left */
+.widget .lucaflect-top{
+  top:-1px; left:35%;
+  transform:translateX(-50%);
+}
+
+/* Bottom lucaflect - 55% from left */
+.widget .lucaflect-bottom{
+  bottom:-1px; left:55%;
+  transform:translateX(-50%);
+}
+
+/* Left lucaflect - 30% down, rotated 90deg */
+.widget .lucaflect-left{
+  left:-1px; top:10%;
+  width:67px;
+  transform:translateY(-50%) rotate(90deg);
+  transform-origin:left center;
+}
+
+/* Right lucaflect - 70% down, rotated 90deg */
+.widget .lucaflect-right{
+  right:-1px; top:75%;
+  width:67px;
+  transform:translateY(-50%) rotate(90deg);
+  transform-origin:right center;
+}
+
+.widget .lucaflect::before{
+  content:'';
+  position:absolute;
+  inset:-20px;
+  background: radial-gradient(ellipse 110px 40px at center, rgba(0, 141, 255, 0.5) 0%, rgba(0, 141, 255, 0.12) 35%, rgba(0, 141, 255, 0.04) 65%, transparent 100%);
+  pointer-events:none;
+}
+.widget .lucaflect::after{
+  content:'';
+  position:absolute;
+  inset:-1px;
+  background: radial-gradient(ellipse 84px 12px at center, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+  pointer-events:none;
+  z-index:2;
+}
+.widget .lucaflect img{
+  width:100%; height:100%;
+  display:block;
+  object-fit:fill;
+  position:relative;
+  z-index:1;
+}
+.widget{
+  position:relative; overflow:visible; border-radius:calc(var(--radius) + 2px);
+  background: rgba(55, 67, 81, 0.45);
+  backdrop-filter: blur(12px);
+  transition: all 0.3s ease;
+  isolation: isolate;
+}
+
+/* Hover state - increase opacity and trigger drift */
+.widget:hover .lucaflect{
+  opacity:1;
+}
+
+.widget:hover .lucaflect-top{
+  animation: drift-left 0.8s ease-out forwards;
+}
+
+.widget:hover .lucaflect-bottom{
+  animation: drift-right 0.8s ease-out forwards;
+}
+
+.widget:hover .lucaflect-left{
+  animation: drift-down 0.8s ease-out forwards;
+}
+
+.widget:hover .lucaflect-right{
+  animation: drift-up 0.8s ease-out forwards;
+}
+
+/* Drift animations */
+@keyframes drift-left {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(calc(-50% - 48px)); } /* half inch = 48px */
+}
+
+@keyframes drift-right {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(calc(-50% + 48px)); } /* half inch = 48px */
+}
+
+@keyframes drift-down {
+  from { transform: translateY(-50%) rotate(90deg); }
+  to { transform: translateY(calc(-50% + 36px)) rotate(90deg); } /* 3/8 inch = 36px */
+}
+
+@keyframes drift-up {
+  from { transform: translateY(-50%) rotate(90deg); }
+  to { transform: translateY(calc(-50% - 36px)) rotate(90deg); } /* 3/8 inch = 36px */
+}
+
+/* layout helpers */
+.col-4{ grid-column: span 4; } .col-5{ grid-column: span 5; }
+.col-6{ grid-column: span 6; } .col-7{ grid-column: span 7; }
+.col-8{ grid-column: span 8; } .col-12{ grid-column: span 12; }
+.row-1{ grid-row: span 1; } .row-2{ grid-row: span 2; }
+
+@media (max-width: 1100px){
+  .grid{ grid-template-columns: repeat(6, 1fr); }
+  .col-7{ grid-column: span 6; } .col-8{ grid-column: span 6; }
+}
+@media (max-width: 700px){
+  .grid{ grid-template-columns: repeat(1, 1fr); }
+  .col-4,.col-5,.col-6,.col-7,.col-8,.col-12{ grid-column: 1/-1; }
+}
+
+/* ===== CHARTS (SVG looks) ===== */
+.kpi{ display:flex; gap:14px; align-items:center; margin-top:8px; }
+.kpi .big{ font:800 28px Ubuntu; letter-spacing:-.02em; }
+.kpi .unit{ color:var(--accent); font-weight:700; margin-left:6px; }
+
+.small{ color:var(--muted); font:500 12px Ubuntu; }
+
+.btn{ display:inline-flex; align-items:center; justify-content:center;
+  padding:8px 12px; border-radius:10px; font:700 12px Ubuntu; letter-spacing:.04em;
+  background:rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
+
+.ap-footer .btn{
+  padding:8px 12px;
+  border-radius:10px;
+  font:600 11px Ubuntu;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  background:rgba(255,255,255,.06);
+  border:0;
+  color:var(--text);
+  cursor:pointer;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  transition: all 0.2s ease;
+  white-space:normal;
+  text-align:center;
+  line-height:1.3;
+  min-width:70px;
+  max-width:190px;
+}
+
+    .ap-footer .btn:hover:not(:disabled){
+      background:rgba(115,187,201,.15);
+      box-shadow: inset 0 0 0 1px rgba(115,187,201,.3);
+    }
+
+    .ap-footer .btn:disabled{
+      opacity:0.4;
+      cursor:not-allowed;
+    }
+
+    .ap-footer .btn#apPaySelectedBtn:not(:disabled){
+      background:rgba(102,224,163,.12);
+      box-shadow: inset 0 0 0 1px rgba(102,224,163,.2);
+    }
+
+    .ap-footer .btn#apPaySelectedBtn:hover:not(:disabled){
+      background:rgba(102,224,163,.2);
+      box-shadow: inset 0 0 0 1px rgba(102,224,163,.35);
+    }
+    
+.toggle{ display:flex; align-items:center; justify-content:space-between;
+  padding:8px 10px; border-radius:12px; background:rgba(255,255,255,.05);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); margin:8px 0; }
+.toggle .lab{ font:600 12px Ubuntu; color:var(--muted) }
+.switch{
+  width:42px; height:22px; border-radius:999px; background:rgba(255,255,255,.12); position:relative;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.1);
+}
+.switch:after{
+  content:""; position:absolute; top:3px; left:3px; width:16px; height:16px; border-radius:50%;
+  background: radial-gradient(circle at 40% 30%, #bff3ff, #73bbc9 60%, #2f6d79 100%);
+  box-shadow: 0 0 10px rgba(115,187,201,.45);
+}
+.switch.ok{ background: rgba(102,224,163,.25); }
+.switch.ok:after{ left:23px; }
+
+/* ===== GLOW OVERLAY SVG (shared) ===== */
+.glow{ position:absolute; inset:-3px; width:calc(100% + 6px); height:calc(100% + 6px); pointer-events:none; }
+
+/* ===== CTA styles ===== */
+.cta-wrap{
+  position:fixed; inset:auto 50% 36px auto; transform:translateX(50%);
+  z-index:20; pointer-events:none;
+}
+.cta{
+  pointer-events:auto; position:relative; width:200px; height:200px; border:0; border-radius:50%;
+  background: radial-gradient(90px 90px at 50% 45%, rgba(255,255,255,.10), rgba(255,255,255,0) 60%),
+              radial-gradient(circle at 50% 50%, rgba(55,67,81,.85), rgba(55,67,81,.75) 60%, rgba(55,67,81,.6));
+  box-shadow:
+    0 30px 60px rgba(0,0,0,.45),
+    0 0 0 1px rgba(255,255,255,.06) inset;
+  color:var(--text); cursor:pointer; overflow:hidden;
+}
+.cta:focus-visible{ outline: 2px solid rgba(241,249,251,.7); outline-offset: 4px; border-radius:50%; }
+
+.ring{ position:absolute; inset:-8px; border-radius:50%; filter: blur(8px);
+  opacity:.05; pointer-events:none; animation: breathe 4.8s ease-in-out infinite; }
+.ring-outer{ background: radial-gradient(120px 120px at 50% 50%, rgba(241,249,251,.45), rgba(115,187,201,.35) 40%, rgba(115,187,201,.00) 70%); }
+.ring-inner{ inset:12px; filter: blur(6px); opacity:.01;
+  background: radial-gradient(100px 100px at 50% 50%, rgba(241,249,251,.75), rgba(115,187,201,.45) 50%, rgba(115,187,201,.00) 75%);
+  animation-delay: .8s; }
+@keyframes breathe{ 0%,100%{ transform: scale(1); opacity:.85; } 50%{ transform: scale(1.06); opacity:1; } }
+
+.cta-label{ position:absolute; inset:0; display:grid; place-items:center; text-align:center; padding:18px; }
+.cta-small{ font:700 12px Ubuntu,sans-serif; letter-spacing:.12em; text-transform:uppercase; opacity:.9; margin-bottom:6px; }
+.cta-icon{ font-size:20px; margin-bottom:6px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+.cta-main{ font:800 14px Ubuntu,sans-serif; letter-spacing:.06em; text-transform:uppercase; color:var(--glint); }
+.cta.dragover .ring-outer{ animation-duration:2s; }
+.cta.dragover .ring-inner{ animation-duration:1.8s; }
+
+/* ===== New CTA styles (two concentric rings) ===== */
+.cta-wrap{
+  position:fixed; inset:auto 50% 36px auto; transform:translateX(50%);
+  z-index:20; pointer-events:none;
+}
+.cta2{
+  --size: 200px;                 /* adjust overall size if needed */
+  width:var(--size); height:var(--size);
+  pointer-events:auto; position:relative; border:0; border-radius:50%;
+  background:
+    radial-gradient(80px 80px at 50% 45%, rgba(255,255,255,.09), rgba(255,255,255,0) 65%),
+    radial-gradient(circle at 50% 50%, rgba(55,67,81,.85), rgba(55,67,81,.72) 60%, rgba(55,67,81,.55));
+  box-shadow: 
+    0 40px 80px rgba(0,0,0,.5),
+    0 60px 120px rgba(106,255,253,.15),
+    0 0 0 1px rgba(255,255,255,.06) inset;
+  color:#d1e8f0; cursor:pointer; overflow:visible;
+}
+.cta2{
+  --size: 200px;
+  width:var(--size); height:var(--size);
+  pointer-events:auto; position:relative; border:0; border-radius:50%;
+  background:
+    radial-gradient(80px 80px at 50% 45%, rgba(255,255,255,.09), rgba(255,255,255,0) 65%),
+    radial-gradient(circle at 50% 50%, rgba(55,67,81,.85), rgba(55,67,81,.72) 60%, rgba(55,67,81,.55));
+  box-shadow: 
+    0 40px 80px rgba(0,0,0,.5),
+    0 60px 120px rgba(106,255,253,.15),
+    0 0 0 1px rgba(255,255,255,.06) inset;
+  color:#d1e8f0; cursor:pointer; overflow:visible;
+  transition: all 0.4s ease;
+}
+.cta2:focus-visible{ outline:2px solid rgba(241,249,251,.7); outline-offset:4px; }
+.cta2:hover{
+  box-shadow: 
+    0 40px 80px rgba(0,0,0,.5),
+    0 60px 120px rgba(106,255,253,.35),
+    0 0 60px rgba(106,255,253,.6),
+    0 0 100px rgba(106,255,253,.4),
+    0 0 140px rgba(106,255,253,.2),
+    0 0 0 1px rgba(255,255,255,.06) inset,
+    0 0 80px 20px rgba(106,255,253,.15) inset;
+  transition: all 0.4s ease;
+}
+.cta2:hover .cta-floor{
+  opacity:1;
+  width:90%;
+  filter: blur(12px);
+}
+
+.cta-svg{
+  position:absolute; inset:0; width:100%; height:100%; display:block;
+  /* gentle slow breathe to the glow (optional) */
+  animation: cta-breathe 5s ease-in-out infinite;
+}
+@keyframes cta-breathe{
+  0%,100%{ filter: none; transform: scale(1); }
+  50%{ transform: scale(1.01); }
+}
+
+/* center label */
+.cta-content{
+  position:absolute; inset:0; display:grid; place-items:center; text-align:center; pointer-events:none;
+}
+.cta-small{ font:800 13px Ubuntu, sans-serif; letter-spacing:.12em; text-transform:uppercase; opacity:.95; margin-bottom:-55px; }
+.cta-icon{ font-size:22px; margin:10px 0 6px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+.cta2:hover .cta-icon img{
+  filter: 
+    drop-shadow(0 0 8px rgba(255,255,255,.8))
+    drop-shadow(0 0 12px rgba(255,255,255,.5))
+    drop-shadow(0 2px 6px rgba(0,0,0,.35));
+  transition: filter 0.4s ease;
+}
+.cta-main{ font:800 15px Ubuntu, sans-serif; letter-spacing:.08em; text-transform:uppercase; color:#f1f9fb; line-height:1.2; margin-top: -60px;}
+
+/* floor glow ellipse */
+.cta-floor{
+  position:absolute; left:50%; bottom:-12px; width:80%; height:24px; transform:translateX(-50%);
+  background: radial-gradient(60% 100% at 50% 50%, rgba(106,255,253,.65), rgba(106,255,253,.25) 50%, rgba(106,255,253,0) 70%);
+  filter: blur(10px); opacity:.95; pointer-events:none;
+}
+
+/* drag-over: quick pulse to confirm target */
+.cta2.dragover .cta-svg{ animation-duration:2s; }
+
+/* ===== ASSISTANT panel ===== */
+
+.assistant{
+  position:fixed; right:24px; top:120px; width:320px; height:68vh; min-height:480px;
+  max-height:80vh; 
+  display:flex; flex-direction:column;
+  background: rgba(55, 67, 81, 0.5); backdrop-filter: blur(12px);
+  border-radius:20px; overflow:hidden; z-index:15;
+  box-shadow: 
+    0 0 0 1.5px rgba(255,255,255,.1) inset,
+    0 12px 32px rgba(0,0,0,.4), 
+    0 48px 96px rgba(0,0,0,.35);
+  transition: all 0.3s ease;
+}
+
+
+
+
+
+
+.assistant.dragging{
+  cursor: move;
+}
+.assistant-icon{
+  width:90px; height:90px; display:flex; align-items:center; justify-content:center;
+  background: radial-gradient(circle at center, rgba(115,187,201,.15) 0%, rgba(115,187,201,.15) 50%, transparent 100%);
+  border-radius:50%;
+  box-shadow: 
+    0 0 30px 8px rgba(115,187,201,.08),
+    0 0 45px 15px rgba(115,187,201,.05);
+}
+.assistant-icon img{
+  width:100%; height:100%; filter: drop-shadow(0 2px 4px rgba(0,0,0,.4));
+}
+.assistant:hover .assistant-icon{
+  box-shadow: 
+    0 0 1px 12px rgba(146,207,227,.01),
+    0 0 1px 15px rgba(146,207,227,.01),
+    0 0 1px 10px rgba(146,207,227,.01);
+  transition: all 0.4s ease;
+}
+
+.assistant:hover .assistant-icon img{
+  filter: 
+    drop-shadow(0 0 8px rgba(146,207,227,.01))
+    drop-shadow(0 0 1px rgba(146,207,227,.01))
+    drop-shadow(0 2px 4px rgba(0,0,0,.4));
+  animation: squid-wiggle 10.5s ease-in-out;
+}
+
+@keyframes squid-wiggle {
+  0% { 
+    transform: rotate(0deg) scale(1); 
+  }
+  10% { 
+    transform: rotate(-5deg) scale(0.95); 
+  }
+  20% { 
+    transform: rotate(5deg) scale(0.95); 
+  }
+  30% { 
+    transform: rotate(0deg) scale(1); 
+  }
+  40% { 
+    transform: rotate(-5deg) scale(0.95); 
+  }
+  50% { 
+    transform: rotate(5deg) scale(0.95); 
+  }
+  60% { 
+    transform: rotate(0deg) scale(1); 
+  }
+  70% { 
+    transform: rotate(-5deg) scale(0.95); 
+  }
+  85% { 
+    transform: rotate(5deg) scale(0.95); 
+  }
+  100% { 
+    transform: rotate(0deg) scale(1); 
+  }
+}
+
+
+.assistant:hover{
+  background: rgba(65, 77, 91, 0.6);
+  box-shadow: 
+    0 0 0 1.5px rgba(255,255,255,.15) inset,
+    0 12px 32px rgba(0,0,0,.6), 
+    0 48px 96px rgba(0,0,0,.5);
+}
+.assistant-topbar{
+  height:120px; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px 10px; gap:8px;
+  background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+  position:relative;
+  transition: all 0.3s ease;
+}
+
+.assistant:hover .assistant-topbar{
+  background: linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.12));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.15);
+}
+.assistant-title{ 
+  font:700 13px Ubuntu; 
+  letter-spacing:.08em; 
+  text-transform:uppercase; 
+  margin-top:4px;
+  transition: all 0.3s ease;
+}
+
+.assistant:hover .assistant-title{
+  color:#92cfe3;
+  text-shadow: 
+    0 0 10px rgba(146,207,227,.8),
+    0 0 20px rgba(146,207,227,.5),
+    0 0 30px rgba(146,207,227,.3);
+}
+
+.assistant-status{ 
+  font:700 10px Ubuntu; 
+  letter-spacing:.14em; 
+  text-transform:uppercase; 
+  color:#032d1a;
+  background:linear-gradient(180deg,#8ff0c2,#4fd59a); 
+  padding:4px 8px; 
+  border-radius:999px;
+  box-shadow: 
+    0 0 12px rgba(79,213,154,.6),
+    0 0 20px rgba(79,213,154,.4),
+    0 4px 12px rgba(79,213,154,.35);
+  position:absolute;
+  top:12px;
+  right:12px;
+}
+
+.assistant-collapse{
+  position:absolute; top:12px; left:12px; width:24px; height:24px;
+  background: rgba(255,255,255,.08); border-radius:6px; border:0;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  font-size:14px; color:var(--text); transition: all 0.2s ease;
+}
+.assistant-collapse:hover{
+  background: rgba(255,255,255,.15);
+}
+
+.assistant-input{
+  min-height:56px; display:flex; gap:8px; align-items:flex-end; padding:8px; background: rgba(255,255,255,.04);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+  flex-shrink:0;
+}
+.assistant.collapsed .assistant-body{
+  display:none;
+}
+.assistant.collapsed .assistant-topbar{
+  height:80px;
+  padding:12px 10px;
+}
+.assistant.collapsed .assistant-icon{
+  width:50px;
+  height:50px;
+}
+.assistant.collapsed{
+  height: auto !important;
+  min-height: auto !important;
+}
+
+.assistant-body{
+  flex:1; overflow:auto; padding:12px 12px 8px; display:flex; flex-direction:column; gap:8px;
+  min-height:200px;
+}
+.msg{ padding:10px 12px; border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+      background: rgba(255,255,255,.05); font: 500 13px Ubuntu;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      word-break: break-word;
+      max-width: 100%; }
+.msg.user{ align-self:flex-end; background: rgba(115,187,201,.18); }
+.msg.system{ opacity:.95; }
+
+.assistant-input{
+  min-height:56px; display:flex; gap:8px; align-items:flex-end; padding:8px; background: rgba(255,255,255,.04);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
+  flex-shrink:0;
+}
+.assistant-input textarea{
+  flex:1; min-height:38px; max-height:150px; border-radius:10px; border:0; 
+  padding:10px; color:var(--text);
+  background: rgba(255,255,255,.06); box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  resize: none; overflow-y:auto;
+  font-family: Ubuntu, sans-serif; font-size:13px;
+  line-height:1.4;
+}
+.assistant-input button{
+  height:38px; padding:0 14px; border-radius:10px; border:0; font:700 12px Ubuntu; letter-spacing:.04em;
+  background: rgba(255,255,255,.12); color:var(--text);
+}
+
+/* ===== AP Widget Styles ===== */
+.ap-toolbar{
+  padding:12px 14px 10px 14px; 
+  display:flex; 
+  gap:8px; 
+  align-items:center;
+  margin-top:8px;
+}
+
+.ap-search{
+  flex:1; 
+  background:rgba(255,255,255,.06); 
+  border:0; 
+  border-radius:12px; 
+  padding:10px 12px; 
+  color:var(--text); 
+  font:500 13px Ubuntu; 
+  letter-spacing:.02em;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  transition: all 0.2s ease;
+}
+
+.ap-search:focus{
+  outline:none;
+  background:rgba(255,255,255,.08);
+  box-shadow: inset 0 0 0 1.5px rgba(115,187,201,.3);
+}
+
+.ap-refresh{
+  width:38px; 
+  height:38px; 
+  background:rgba(255,255,255,.06); 
+  border:0; 
+  border-radius:10px; 
+  color:var(--text);
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:18px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  transition: all 0.2s ease;
+}
+
+.ap-refresh:hover{
+  background:rgba(115,187,201,.15);
+  box-shadow: inset 0 0 0 1px rgba(115,187,201,.3);
+}
+
+.ap-row{
+  display:flex; 
+  gap:12px; 
+  align-items:center; 
+  padding:12px; 
+  border:1px solid rgba(255,255,255,.12); 
+  border-radius:12px; 
+  background:rgba(255,255,255,.03);
+  transition: all 0.2s ease;
+}
+
+.ap-row:hover{
+  background:rgba(255,255,255,.05);
+  border-color:rgba(115,187,201,.3);
+}
+
+.ap-row input[type="checkbox"]{
+  width:18px;
+  height:18px;
+  cursor:pointer;
+}
+
+.ap-meta{
+  flex:1;
+}
+
+.ap-vendor{
+  font:700 13px Ubuntu; 
+  letter-spacing:.02em;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:4px;
+}
+
+.ap-badge{
+  padding:3px 8px;
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:6px;
+  font:700 10px Ubuntu;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+
+.ap-badge.open{
+  color:var(--warn);
+  border-color:rgba(255,210,106,.3);
+  background:rgba(255,210,106,.08);
+}
+
+.ap-badge.paid{
+  color:var(--ok);
+  border-color:rgba(102,224,163,.3);
+  background:rgba(102,224,163,.08);
+}
+
+.ap-amount{
+  font:700 14px Ubuntu;
+}
+
+.ap-details{
+  font:500 12px Ubuntu;
+  color:var(--muted);
+  margin-top:4px;
+}
+
+.ap-actions{
+  display:flex;
+  gap:8px;
+}
+
+.ap-icon-btn{
+  width:36px;
+  height:36px;
+  background:rgba(255,255,255,.06);
+  border:0;
+  border-radius:50%;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+  transition: all 0.2s ease;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+
+.ap-icon-btn img{
+  width:16px;
+  height:16px;
+  opacity:0.8;
+}
+
+.ap-icon-btn:hover{
+  background:rgba(115,187,201,.15);
+  box-shadow: inset 0 0 0 1px rgba(115,187,201,.3);
+}
+
+.ap-icon-btn:hover img{
+  opacity:1;
+}
+
+.ap-icon-btn.delete:hover{
+  background:rgba(255,80,80,.15);
+  box-shadow: inset 0 0 0 1px rgba(255,80,80,.3);
+}
+
+.ap-icon-btn .tooltip{
+  position:absolute;
+  bottom:calc(100% + 8px);
+  left:50%;
+  transform:translateX(-50%);
+  background:rgba(55,67,81,.95);
+  color:var(--text);
+  padding:6px 10px;
+  border-radius:6px;
+  font:600 11px Ubuntu;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  opacity:0;
+  pointer-events:none;
+  transition: opacity 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+}
+
+.ap-icon-btn:hover .tooltip{
+  opacity:1;
+}
+
+.ap-footer{
+  padding:12px 14px; 
+  display:flex; 
+  justify-content:space-between; 
+  align-items:center; 
+  border-top:1px solid rgba(255,255,255,.08);
+}
+
+.ap-footer-actions{
+  display:flex;
+  gap:8px;
+}
+</style>
+</head>
+<body>
+
+
+<!-- ===== HEADER ===== -->
+<div class="header">
+  <div class="brand">
+    <div class="logo-badge">
+      <img src="/public/squiddemon.svg" alt="Squid Demon Logo">
+    </div>
+    <img src="/public/squidtext.png" alt="Squid Business Platform" style="height:64px; margin-left:-8px; margin-top:8px;">
+  </div>
+  <div class="tabs">
+    <div class="tab active">Dashboard</div>
+    <div class="tab">Compliance</div>
+    <div class="tab">Receipts</div>
+    <div class="tab">Customer Invoices (AR)</div>
+    <div class="tab">Vendor Bills (AP)</div>
+    <div class="tab">Inventory</div>
+    <div class="tab">Reports</div>
+    <div class="tab">Customize</div>
+  </div>
+</div>
+
+
+<!-- ===== GRID ===== -->
+<div class="grid grid-stack">
+
+    <!-- Real-Time Inventory -->
+    <div class="grid-stack-item" gs-w="5" gs-h="1" gs-x="0" gs-y="0">
+      <div class="grid-stack-item-content">
+        <div class="widget glow-card">
+          <svg class="glow" viewBox="0 0 500 200"></svg>
+          <div class="lip"></div>
+          <div class="lucaflect lucaflect-top"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-bottom"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="topbar">
+            <div class="title">Real-Time Inventory</div>
+            <div class="dots"><i></i><i></i><i></i></div>
+          </div>
+          <div class="content">
+            <div class="status">Optimal</div>
+            <svg viewBox="0 0 500 120" height="120" style="display:block;margin-top:8px;width:100%;">
+              <defs>
+                <linearGradient id="invArea" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="#8dc9d5" stop-opacity=".22"/>
+                  <stop offset="100%" stop-color="#8dc9d5" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <g stroke="rgba(255,255,255,.06)">
+                <line x1="0" y1="100" x2="500" y2="100"/>
+                <line x1="0" y1="60"  x2="500" y2="60"/>
+              </g>
+              <path d="M0,90 L60,70 L120,95 L180,60 L240,82 L300,65 L360,75 L420,55 L500,80 L500,120 L0,120 Z"
+                    fill="url(#invArea)"/>
+              <g fill="#73bbc9">
+                <circle cx="60" cy="70" r="3"/><circle cx="120" cy="95" r="3"/><circle cx="180" cy="60" r="3"/>
+                <circle cx="240" cy="82" r="3"/><circle cx="300" cy="65" r="3"/><circle cx="360" cy="75" r="3"/>
+                <circle cx="420" cy="55" r="3"/><circle cx="500" cy="80" r="3"/>
+              </g>
+            </svg>
+            <div class="small">Raw Materials • Finished Goods • In Transit</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Operations Control -->
+    <!--<div class="grid-stack-item" gs-w="7" gs-h="1" gs-x="5" gs-y="0">-->
+    <div class="grid-stack-item" gs-w="7" gs-h="1" gs-x="5" gs-y="0">
+      <div class="grid-stack-item-content">
+        <div class="widget glow-card">
+          <svg class="glow" viewBox="0 0 700 200"></svg>
+          <div class="lip"></div>
+          <div class="lucaflect lucaflect-top"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-bottom"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="topbar">
+            <div class="title">Operations Control</div>
+            <div class="dots"><i></i><i></i><i></i></div>
+          </div>
+          <div class="content">
+            <svg viewBox="0 0 700 120" height="120" style="display:block;margin-top:8px;width:100%;">
+              <defs>
+                <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="1" />
+                </filter>
+              </defs>
+              <path d="M0,60 C120,10 220,110 340,60 C460,10 560,110 700,60" stroke="#9ed8e3" stroke-width="2" fill="none" filter="url(#soft)"/>
+              <path d="M0,70 C120,20 220,120 340,70 C460,20 560,120 700,70" stroke="rgba(158,216,227,.5)" stroke-width="1" fill="none" />
+              <g fill="#73bbc9">
+                <circle cx="80" cy="58" r="4"/><circle cx="210" cy="92" r="4"/><circle cx="350" cy="60" r="4"/>
+                <circle cx="490" cy="92" r="4"/><circle cx="620" cy="60" r="4"/>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- BEGIN: Vendor Bills (AP) Widget (drop-in replacement for the "AI Assistant (Tall Chat)" box) -->
+    <div class="grid-stack-item" gs-w="4" gs-h="2" gs-x="0" gs-y="1">
+      <div class="grid-stack-item-content">
+          <!-- <div class="widget glow-card" style="min-height:480px; display:flex; flex-direction:column;"> -->
+          <!--<div class="widget glow-card" style="min-height:400px; display:flex; flex-direction:column; height:100%;">-->
+        <div class="widget glow-card" style="min-height:400px; display:flex; flex-direction:column; height:100%;">
+          <svg class="glow" viewBox="0 0 400 380"></svg>
+          <div class="lip"></div>
+          <div class="lucaflect lucaflect-top"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-bottom"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
+          <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
+
+          <div class="topbar">
+            <div class="title">Vendor Bills (AP)</div>
+            <div class="dots"><i></i><i></i><i></i></div>
+          </div>
+
+          <!-- toolbar -->
+          <div class="ap-toolbar">
+            <input id="apSearch" type="search" placeholder="Search vendor or memo…" class="ap-search">
+            <button class="ap-refresh" id="apRefreshBtn" title="Refresh">↻</button>
+          </div>
+
+          <!-- scrollable list -->
+          <!-- scrollable list -->
+          <div id="apList" class="content" style="flex:1; overflow:auto; padding:0 14px 12px; display:flex; flex-direction:column; gap:10px; max-height:300px;">
+            <div class="small" style="opacity:.9;">Loading open bills…</div>
+          </div>
+          
+
+          <!-- footer -->
+          <div class="ap-footer">
+            <div id="apSummary" style="font:600 13px Ubuntu; color:var(--muted); letter-spacing:.02em;">0 open • $0.00 due</div>
+            <div class="ap-footer-actions">
+              <button class="btn" id="apPaySelectedBtn" disabled>Mark Selected<br>Paid</button>
+              <button class="btn" id="apSelectAllBtn">Select<br>All</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- END: Vendor Bills (AP) Widget -->
+<!-- END: Vendor Bills (AP) Widget -->
+
+<script>
+// --- AP Widget logic ---
+const apState = { items: [], selected: new Set(), query: "" };
+
+function formatMoney(n){
+  if (typeof n !== 'number') n = Number(n||0);
+  return n.toLocaleString(undefined, { style:'currency', currency:'USD' });
+}
+
+function escapeHtml(s){
+  return String(s||'').replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' })[c]);
+}
+
+
+function apRow(item){
+  const row = document.createElement('div');
+  row.className = 'ap-row';
+
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = apState.selected.has(item.id);
+  cb.addEventListener('change', ()=>{
+    if (cb.checked) apState.selected.add(item.id); else apState.selected.delete(item.id);
+    updateFooter();
+  });
+
+  const meta = document.createElement('div');
+  meta.className = 'ap-meta';
+  const isPaid = (item.status === 'paid');
+  const titleStyle = isPaid ? 'text-decoration:line-through; opacity:.7;' : '';
+  const badgeClass = isPaid ? 'paid' : 'open';
+  const badgeText = isPaid ? 'PAID' : 'OPEN';
+  
+  meta.innerHTML = `
+    <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:6px;">
+      <div class="ap-vendor" style="${titleStyle}">
+        ${escapeHtml(item.vendor||'Unknown vendor')}
+        <span class="ap-badge ${badgeClass}">${badgeText}</span>
+      </div>
+      <div class="ap-amount" style="${titleStyle}">${formatMoney(item.total||0)}</div>
+    </div>
+    <div class="ap-details" style="${titleStyle}">
+      ${escapeHtml(item.memo||item.description||item.summary||'No description')}
+    </div>
+    <div class="ap-details" style="${titleStyle}">
+      Bill #: ${escapeHtml(item.number||item.invoice_number||'—')} • Due: ${escapeHtml(item.due_date||'—')}
+    </div>
+  `;
+
+  const actions = document.createElement('div');
+  actions.className = 'ap-actions';
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'ap-icon-btn';
+  toggleBtn.innerHTML = `
+    <img src="/public/checkmark.png" alt="">
+    <span class="tooltip">${isPaid ? 'Mark Open' : 'Mark Paid'}</span>
+  `;
+  toggleBtn.addEventListener('click', ()=> toggleStatus(item.id, isPaid ? 'open' : 'paid'));
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'ap-icon-btn delete';
+  delBtn.innerHTML = `
+    <img src="/public/trashcan.png" alt="">
+    <span class="tooltip">Delete</span>
+  `;
+  delBtn.addEventListener('click', ()=> deleteRecord(item.id));
+
+  actions.appendChild(toggleBtn);
+  actions.appendChild(delBtn);
+
+  row.appendChild(cb);
+  row.appendChild(meta);
+  row.appendChild(actions);
+  return row;
+}
+
+async function loadAP(){
+  const list = document.getElementById('apList');
+  list.innerHTML = '<div class="small" style="opacity:.9;">Loading open bills…</div>';
+  try{
+    // Backend endpoint expected to return: [{id, vendor, total, due_date, number, memo, description, status}]
+    const res = await fetch('/ap/bills?status=all');
+    if(!res.ok) throw new Error(await res.text());
+    const items = await res.json();
+    apState.items = Array.isArray(items)? items : [];
+  }catch(e){
+    apState.items = [];
+    if (typeof pushMsg === 'function') pushMsg('AP load failed: '+(e?.message||e), 'system');
+  }
+  renderAP();
+}
+
+function renderAP(){
+  const list = document.getElementById('apList');
+  list.innerHTML = '';
+  const q = apState.query.trim().toLowerCase();
+  const rows = apState.items.filter(it=>{
+    if(!q) return true;
+    const hay = `${it.vendor||''} ${it.memo||''} ${it.description||''} ${it.number||''}`.toLowerCase();
+    return hay.includes(q);
+  });
+  if(rows.length===0){
+    list.innerHTML = '<div class="small" style="opacity:.9;">No open bills.</div>';
+  } else {
+    rows.forEach(it=> list.appendChild(apRow(it)));
+  }
+  updateFooter();
+}
+
+
+function updateFooter(){
+  const selCount = apState.selected.size;
+  const openCount = apState.items.filter(it => it.status !== 'paid').length;
+  const paidCount = apState.items.filter(it => it.status === 'paid').length;
+  const totalDue = apState.items
+      .filter(it => it.status !== 'paid')
+      .reduce((s,it)=> s + Number(it.total||0), 0);
+  document.getElementById('apSummary').textContent = `${openCount} open • ${paidCount} paid • ${formatMoney(totalDue)} due`;
+  document.getElementById('apPaySelectedBtn').disabled = selCount===0;
+}
+
+
+
+async function toggleStatus(id, nextStatus){
+  try{
+    const res = await fetch(`/records/${id}/status`, {
+      method:'PATCH',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ status: nextStatus })
+    });
+    if(!res.ok) throw new Error(await res.text());
+    // Update local state item
+    apState.items = apState.items.map(it => it.id === id ? { ...it, status: nextStatus } : it);
+    renderAP();
+    if (typeof pushMsg === 'function') pushMsg(`Set ${id} → ${nextStatus.toUpperCase()}.`, 'system');
+  }catch(e){
+    if (typeof pushMsg === 'function') pushMsg('Update failed: '+(e?.message||e), 'system');
+  }
+}
+
+async function deleteRecord(id){
+  const ok = confirm('Are you sure you want to delete? This cannot be undone.');
+  if (!ok) return;
+  try{
+    const res = await fetch(`/records/${id}`, { method:'DELETE' });
+    if(!res.ok) throw new Error(await res.text());
+    apState.items = apState.items.filter(it => it.id !== id);
+    apState.selected.delete(id);
+    renderAP();
+    if (typeof pushMsg === 'function') pushMsg(`Deleted record ${id}.`, 'system');
+  }catch(e){
+    if (typeof pushMsg === 'function') pushMsg('Delete failed: '+(e?.message||e), 'system');
+  }
+}
+
+// events
+document.getElementById('apRefreshBtn')?.addEventListener('click', loadAP);
+const searchEl = document.getElementById('apSearch');
+searchEl?.addEventListener('input', (e)=>{ apState.query = e.target.value; renderAP(); });
+
+document.getElementById('apSelectAllBtn')?.addEventListener('click', ()=>{
+  const ids = apState.items.map(it=> it.id);
+  apState.selected = new Set(ids);
+  renderAP();
+});
+
+document.getElementById('apPaySelectedBtn')?.addEventListener('click', async ()=>{
+  const ids = [...apState.selected];
+  for (const id of ids) { await toggleStatus(id, 'paid'); }
+  apState.selected.clear();
+});
+
+// initial load after DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', loadAP);
+} else {
+  loadAP();
+}
+</script>
+
+
+<!-- Financial Overview (donut) -->
+<div class="grid-stack-item" gs-w="4" gs-h="1" gs-x="4" gs-y="1">
+  <div class="grid-stack-item-content">
+    <div class="widget glow-card">
+      <svg class="glow" viewBox="0 0 400 200"></svg>
+      <div class="lip"></div>
+      <div class="lucaflect lucaflect-top"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-bottom"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="topbar">
+        <div class="title">Financial Overview</div>
+        <div class="dots"><i></i><i></i><i></i></div>
+      </div>
+      <div class="content" style="display:flex; gap:16px; align-items:center;">
+        <svg viewBox="0 0 120 120" width="120" height="120">
+          <defs>
+            <linearGradient id="donut" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#9fdce6"/><stop offset="100%" stop-color="#73bbc9"/>
+            </linearGradient>
+          </defs>
+          <circle cx="60" cy="60" r="40" stroke="rgba(255,255,255,.08)" stroke-width="14" fill="none"/>
+          <circle cx="60" cy="60" r="40" stroke="url(#donut)" stroke-width="14" fill="none"
+                  stroke-dasharray="188" stroke-dashoffset="60" stroke-linecap="round"/>
+          <circle cx="60" cy="60" r="28" fill="rgba(255,255,255,.04)" />
+        </svg>
+        <div>
+          <div class="small">Order Fulfillment:</div>
+          <div class="kpi"><div class="big">98%</div></div>
+          <div class="small">Next Shipment: <b>24 hrs</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Compliance & Regulatory -->
+<div class="grid-stack-item" gs-w="4" gs-h="1" gs-x="8" gs-y="1">
+  <div class="grid-stack-item-content">
+    <div class="widget glow-card">
+      <svg class="glow" viewBox="0 0 400 200"></svg>
+      <div class="lip"></div>
+      <div class="lucaflect lucaflect-top"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-bottom"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="topbar">
+        <div class="title">Compliance & Regulatory</div>
+        <div class="dots"><i></i><i></i><i></i></div>
+      </div>
+      <div class="content">
+        <div class="small" style="display:flex; gap:10px; flex-wrap:wrap;">
+          <span>✅ ISO 901: OK</span>
+          <span>✅ CE Mark: OK</span>
+          <span>🟡 Environmental — <b>Review</b></span>
+        </div>
+        <div class="small" style="margin-top:10px; background:rgba(255,255,255,.05); padding:10px; border-radius:12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);">
+          I've flagged potential supply chain delay in Taiwan. Shall I propose alternative suppliers?
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Financial Overview (strip) -->
+<div class="grid-stack-item" gs-w="8" gs-h="1" gs-x="4" gs-y="2">
+  <div class="grid-stack-item-content">
+    <div class="widget glow-card">
+      <svg class="glow" viewBox="0 0 820 200"></svg>
+      <div class="lip"></div>
+      <div class="lucaflect lucaflect-top"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-bottom"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
+      <div class="topbar">
+        <div class="title">Financial Overview</div>
+        <div class="dots"><i></i><i></i><i></i></div>
+      </div>
+      <div class="content">
+        <div class="kpi"><div class="big">$1.2M<span class="unit"> USD</span></div></div>
+        <svg viewBox="0 0 820 120" height="120" style="display:block;margin-top:4px;width:100%;">
+          <defs>
+            <linearGradient id="revArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"  stop-color="#8dc9d5" stop-opacity=".22"/>
+              <stop offset="100%" stop-color="#8dc9d5" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+          <g stroke="rgba(255,255,255,.06)">
+            <line x1="0" y1="100" x2="820" y2="100"/>
+            <line x1="0" y1="46"  x2="820" y2="46"/>
+          </g>
+          <path d="M0,86 L70,76 L150,98 L240,60 L330,95 L410,78 L500,62 L610,95 L700,66 L820,82 L820,120 L0,120 Z"
+                fill="url(#revArea)"/>
+          <g fill="#73bbc9">
+            <circle cx="70" cy="76" r="3.4"/><circle cx="150" cy="98" r="3.4"/><circle cx="240" cy="60" r="3.4"/>
+            <circle cx="330" cy="95" r="3.4"/><circle cx="410" cy="78" r="3.4"/><circle cx="500" cy="62" r="3.4"/>
+            <circle cx="610" cy="95" r="3.4"/><circle cx="700" cy="66" r="3.4"/><circle cx="820" cy="82" r="3.4"/>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- Team Coordination -->
+<div class="grid-stack-item" gs-w="4" gs-h="1" gs-x="0" gs-y="3">
+    <div class="grid-stack-item-content">
+      <div class="widget glow-card">
+        <svg class="glow" viewBox="0 0 400 200"></svg>
+        <div class="lip"></div>
+        <div class="lucaflect lucaflect-top"><img src="/public/lucaflect.svg" alt=""></div>
+        <div class="lucaflect lucaflect-bottom"><img src="/public/lucaflect.svg" alt=""></div>
+        <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
+        <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
+        <div class="topbar">
+          <div class="title">Team Coordination</div>
+          <div class="dots"><i></i><i></i><i></i></div>
+        </div>
+        <div class="content small">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div>👤 John — Induction</div>
+            <div>👤 Sarah — Logistics</div>
+            <div>👤 Mike — Logistics</div>
+            <div>👤 Lisa — Meeting</div>
+            <div>👤 John — Induction</div>
+            <div>👤 Sarah — Logistics</div>
+            <div>👤 Mike — Logistics</div>
+            <div>👤 Lisa — Meeting</div>
+          </div>
+          <div class="small" style="margin-top:8px;opacity:.9;">Tasks due today</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ===== Circular Upload CTA (fixed center bottom) ===== -->
+<div class="cta-wrap">
+  <button class="cta2" id="uploadCta" aria-label="Upload file or receipt">
+    <svg class="cta-svg" viewBox="0 0 220 220" aria-hidden="true">
+      <defs>
+        <!-- Outer ring gradient: #6afffd (bottom) -> #c8fffd (top) -->
+        <linearGradient id="ctaOuterGrad" x1="0" y1="1" x2="0" y2="0">
+          <stop offset="0%"  stop-color="#6afffd"/>
+          <stop offset="100%" stop-color="#c8fffd"/>
+        </linearGradient>
+  
+<!-- Add this new radial gradient for inner glow -->
+  	<radialGradient id="ctaInnerFill" cx="50%" cy="50%">
+          <stop offset="0%" stop-color="rgba(106,255,253,.08)"/>
+          <stop offset="50%" stop-color="rgba(106,255,253,.04)"/>
+          <stop offset="100%" stop-color="transparent"/>
+   	</radialGradient>
+
+        <!-- Soft outer bloom and inner glow -->
+        <filter id="ctaOuterGlow" x="-35%" y="-35%" width="170%" height="170%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="g"/>
+          <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#6afffd" flood-opacity=".25"/>
+          <feMerge><feMergeNode in="g"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="ctaInnerGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="2" result="g2"/>
+          <feMerge><feMergeNode in="g2"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- OUTER ring (stroke 15px), opacity 0.9 -->
+      <!-- radius chosen so everything fits and preserves a 7px gap to the inner ring -->
+      <circle cx="110" cy="110" r="100"
+              fill="none"
+              stroke="url(#ctaOuterGrad)"
+              stroke-width="15"
+              opacity="0.5"
+              filter="url(#ctaOuterGlow)"/>
+
+      <!-- Add this inner glow circle -->
+      <circle cx="110" cy="110" r="83"
+              fill="url(#ctaInnerFill)"
+              stroke="none"/>
+
+      <!-- INNER ring (stroke 5px), opacity 0.9, solid #74fafe -->
+      <circle cx="110" cy="110" r="83"
+              fill="none"
+              stroke="#74fafe"
+              stroke-width="5"
+              opacity="0.8"
+              filter="url(#ctaInnerGlow)"/>
+
+
+    </svg>
+
+    <!-- center content -->
+    <div class="cta-content">
+      <div class="cta-small">START HERE</div>
+      <div class="cta-icon" aria-hidden="true">
+        <img src="/public/squidupload.png" alt="" style="width:32px; height:40px; filter: drop-shadow(0 2px 6px rgba(0,0,0,.35));">
+      </div>
+      <div class="cta-main">UPLOAD<br/>File</div>
+    </div>
+
+    <!-- floor glow under the button -->
+    <span class="cta-floor"></span>
+  </button>
+
+  <input type="file" id="fileInput" multiple hidden />
+</div>
+
+<!-- ===== Right-side Assistant Chat (fixed) ===== -->
+<aside class="assistant" id="assistant">
+  <div class="assistant-topbar" id="assistantHandle">
+    <button class="assistant-collapse" id="collapseBtn" title="Collapse/Expand">▼</button>
+    <div class="assistant-status">Active</div>
+    <div class="assistant-icon">
+      <img src="/public/squiddemon.svg" alt="AI">
+    </div>
+    <div class="assistant-title">AI Assistant</div>
+  </div>
+  <div class="assistant-body" id="chatLog">
+    <div class="msg system">Welcome! Drop an invoice, receipt, e-mail, PDF form, etc., or ask me anything.</div>
+  </div>
+  <form class="assistant-input" id="chatForm">
+    <textarea id="chatText" placeholder="Ask the Squid…" autocomplete="off" rows="1"></textarea>
+    <button type="submit">Send</button>
+  </form>
+</aside>
+
+<script>
+/* ===== Attach living-glow border to every .glow-card ===== */
+function initGlow(card){
+  const svg = card.querySelector('svg.glow');
+  if (!svg) return;
+  
+  const r = card.getBoundingClientRect();
+  const w = Math.round(r.width);
+  const h = Math.round(r.height);
+  const uniqueId = Math.random().toString(36).substr(2, 9);
+
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.innerHTML = `
+    <defs>
+      <filter id="g${uniqueId}" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="10" result="b1"/>
+        <feMerge><feMergeNode in="b1"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+      <radialGradient id="ring${uniqueId}" gradientUnits="userSpaceOnUse" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)*0.55}">
+        <stop offset="0%"  stop-color="#f1f9fb" stop-opacity="1"/>
+        <stop offset="22%" stop-color="#f1f9fb" stop-opacity=".55"/>
+        <stop offset="58%" stop-color="#60768b" stop-opacity=".9"/>
+        <stop offset="100%" stop-color="#60768b" stop-opacity=".95"/>
+      </radialGradient>
+      <radialGradient id="halo${uniqueId}" gradientUnits="userSpaceOnUse" cx="${w/2}" cy="${h/2}" r="${Math.max(w,h)*0.8}">
+        <stop offset="0%"  stop-color="#f1f9fb" stop-opacity=".25"/>
+        <stop offset="40%" stop-color="#f1f9fb" stop-opacity=".08"/>
+        <stop offset="100%" stop-color="#60768b" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect x="1.5" y="1.5" width="${w-3}" height="${h-3}" rx="18" ry="18"
+          fill="none" stroke="url(#halo${uniqueId})" stroke-width="1" filter="url(#g${uniqueId})"/> 
+    <rect x="1.5" y="1.5" width="${w-3}" height="${h-3}" rx="18" ry="18"
+          fill="none" stroke="url(#ring${uniqueId})" stroke-width="3.5" filter="url(#g${uniqueId})"/>
+  `;
+  
+  const ring = svg.querySelector(`#ring${uniqueId}`);
+  const halo = svg.querySelector(`#halo${uniqueId}`);
+  
+  if (!ring || !halo) return;
+
+  let raf, t=0, energy=0, hovering=false;
+  function tick(){
+    t += 0.008;
+    const ease = x => x*x*(3-2*x);
+    const k = ease(energy);
+    const cx0=w/2, cy0=h/2;
+    const dx = 0.19*w*Math.sin(0.7*t) + 0.10*w*Math.sin(1.13*t+1.3);
+    const dy = 0.20*h*Math.sin(0.9*t+0.6) + 0.15*h*Math.sin(1.57*t+2.1);
+    const cx = cx0 + k*dx, cy = cy0 + k*dy;
+    ring.setAttribute('cx', cx); ring.setAttribute('cy', cy);
+    halo.setAttribute('cx', cx); halo.setAttribute('cy', cy);
+    energy += ((hovering?1:0) - energy)*0.05;
+    if(!hovering && energy<0.001){ energy=0; cancelAnimationFrame(raf); raf=null; return; }
+    raf = requestAnimationFrame(tick);
+  }
+  
+  card.addEventListener('mouseenter', ()=>{ 
+    hovering=true; 
+    if(!raf) raf=requestAnimationFrame(tick); 
+  });
+  card.addEventListener('mouseleave', ()=>{ 
+    hovering=false; 
+  });
+  
+  ring.setAttribute('cx', w/2); 
+  ring.setAttribute('cy', h/2);
+  halo.setAttribute('cx', w/2); 
+  halo.setAttribute('cy', h/2);
+}
+
+// Initialize after page load
+window.addEventListener('load', () => {
+  document.querySelectorAll('.glow-card').forEach(card => {
+    initGlow(card);
+    
+    // Make sure hover works - add explicit visual feedback
+    card.style.cursor = 'pointer';
+  });
+});
+
+/* ===== Upload CTA behavior (click + drag/drop) ===== */
+const cta = document.getElementById('uploadCta');
+const fileInput = document.getElementById('fileInput');
+
+cta.addEventListener('click', ()=> fileInput.click());
+cta.addEventListener('dragenter', e => { e.preventDefault(); cta.classList.add('dragover'); });
+cta.addEventListener('dragover',  e => { e.preventDefault(); });
+cta.addEventListener('dragleave', () => cta.classList.remove('dragover'));
+cta.addEventListener('drop', e=>{
+  e.preventDefault(); cta.classList.remove('dragover');
+  handleFiles(e.dataTransfer.files);
+});
+fileInput.addEventListener('change', e => handleFiles(e.target.files));
+
+async function handleFiles(fileList){
+  const [file] = [...fileList];
+  if (!file) return;
+
+  const fd = new FormData();
+  fd.append("file", file);
+
+  pushMsg(`Uploading “${file.name}”…`, "system");
+
+  let resp;
+  try {
+    resp = await fetch("/upload_dupcheck", { method: "POST", body: fd });
+  } catch (e) {
+    pushMsg(`Network error while uploading: ${e?.message || e}`, "system");
+    return;
+  }
+  if (!resp.ok) {
+    const t = await resp.text().catch(()=>" (no details)");
+    pushMsg(`Server error (${resp.status}): ${t}`, "system");
+    return;
+  }
+
+  const data = await resp.json();
+  if (resp.status === 409) {
+    const detail = data?.detail || data;
+    showModal({title:'Exact duplicate', body:'This file matches a previously uploaded document.\n\nI can open the existing one for you.', actions:[{label:'OK'}]});
+    return;
+  }
+  const { duplicate_suspect, proposed_record, document, extraction, duplicate } = data || {};
+  const suggestion =
+    extraction?.raw_json?.suggestion ||
+    "I parsed the file. Add it to the database?";
+
+  let msg = suggestion;
+  if (duplicate_suspect) {
+    msg += `\n\n⚠️ Possible duplicate: ${duplicate_suspect.reason||''}`;
+  }
+
+  pushMsg(msg, "system");
+
+  if (duplicate_suspect) {
+    const list = (duplicate_suspect.matches||[]).slice(0,3).map(m=>`<li>#${m.id} ${m.similarity?`(sim ${m.similarity})`:''}</li>`).join('');
+    showModal({
+      title: 'Potential Duplicate',
+      body: `The assistant found possible matches:\n\n<ul>${list||'<li>(no details)</li>'}</ul>\n\nAdd anyway?`,
+      actions:[
+        {label:'Add Anyway', onClick:()=> pushMsg('Okay — add flow continues (server should expose confirm/force endpoint).','system')},
+        {label:'Cancel'}
+      ]
+    });
+  } else {
+    addActionButtons([
+      { label: 'Add to DB', handler: () => confirmAdd(document?.id) },
+      { label: 'Cancel',    handler: () => pushMsg('Okay, I won’t add it.', 'system') }
+    ]);
+  }
+}
+
+/* ===== Assistant Panel: Draggable & Collapsible ===== */
+const assistant = document.getElementById('assistant');
+const assistantHandle = document.getElementById('assistantHandle');
+const collapseBtn = document.getElementById('collapseBtn');
+
+// Collapse/Expand
+let isCollapsed = false;
+collapseBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  isCollapsed = !isCollapsed;
+  assistant.classList.toggle('collapsed', isCollapsed);
+  collapseBtn.textContent = isCollapsed ? '▲' : '▼';
+});
+
+// Draggable
+let isDragging = false;
+let currentX, currentY, initialX, initialY;
+let xOffset = 0, yOffset = 0;
+
+assistantHandle.addEventListener('mousedown', dragStart);
+document.addEventListener('mousemove', drag);
+document.addEventListener('mouseup', dragEnd);
+
+function dragStart(e) {
+  if (e.target === collapseBtn || e.target.closest('.assistant-collapse')) return;
+  
+  e.preventDefault(); // Prevent text selection
+  
+  initialX = e.clientX - xOffset;
+  initialY = e.clientY - yOffset;
+  
+  if (e.target === assistantHandle || assistantHandle.contains(e.target)) {
+    isDragging = true;
+    assistant.classList.add('dragging');
+    assistantHandle.style.cursor = 'move';
+    document.body.style.userSelect = 'none'; // Disable text selection
+  }
+}
+
+function drag(e) {
+  if (isDragging) {
+    e.preventDefault();
+    currentX = e.clientX - initialX;
+    currentY = e.clientY - initialY;
+    xOffset = currentX;
+    yOffset = currentY;
+    
+    setTranslate(currentX, currentY, assistant);
+  }
+}
+
+function dragEnd(e) {
+  initialX = currentX;
+  initialY = currentY;
+  isDragging = false;
+  assistant.classList.remove('dragging');
+  assistantHandle.style.cursor = '';
+  document.body.style.userSelect = ''; // Re-enable text selection
+}
+
+function dragEnd(e) {
+  initialX = currentX;
+  initialY = currentY;
+  isDragging = false;
+  assistant.classList.remove('dragging');
+  assistantHandle.style.cursor = '';
+}
+
+function setTranslate(xPos, yPos, el) {
+  el.style.transform = `translate(${xPos}px, ${yPos}px)`;
+}
+
+/* ===== Minimal assistant chat demo ===== */
+const chatForm = document.getElementById('chatForm');
+const chatText = document.getElementById('chatText');
+const chatLog  = document.getElementById('chatLog');
+
+// Handle Enter key: Send on Enter, new line on Shift+Enter
+chatText.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault(); // Prevent default new line
+    chatForm.dispatchEvent(new Event('submit')); // Trigger form submission
+  }
+});
+
+chatForm.addEventListener('submit', e=>{
+  e.preventDefault();
+  const text = chatText.value.trim();
+  if(!text) return;
+  pushMsg(text, 'user');
+  chatText.value = '';
+
+  // Demo response; replace with your FastAPI/OpenAI call
+  setTimeout(()=> pushMsg("Got it — I’ll categorize that and update your invoices.", 'system'), 400);
+});
+
+function pushMsg(text, role='system'){
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.textContent = text;
+  chatLog.appendChild(div);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+
+function showModal({title, body, actions=[]}){
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,.5); display:grid; place-items:center; z-index:9999;';
+  const card = document.createElement('div');
+  card.style.cssText = 'width:420px; max-width:92vw; background:rgba(55,67,81,.96); color:var(--text); border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 0 0 1px rgba(255,255,255,.12); padding:16px;';
+  const h = document.createElement('div'); h.style.cssText='font:700 14px Ubuntu; letter-spacing:.06em; text-transform:uppercase; margin-bottom:8px;'; h.textContent = title || 'Notice';
+  const b = document.createElement('div'); b.style.cssText='font:500 13px Ubuntu; opacity:.95; white-space:pre-wrap;'; b.innerHTML = body || '';
+  const row = document.createElement('div'); row.style.cssText='display:flex; gap:8px; justify-content:flex-end; margin-top:12px;';
+  (actions.length?actions:[{label:'OK'}]).forEach(a=>{
+    const btn = document.createElement('button');
+    btn.className='btn'; btn.textContent=a.label||'OK';
+    btn.addEventListener('click', ()=>{ try{ a.onClick?.(); } finally{ document.body.removeChild(overlay);} });
+    row.appendChild(btn);
+  });
+  card.appendChild(h); card.appendChild(b); card.appendChild(row);
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+}
+
+function addActionButtons(actions){
+  const row = document.createElement("div");
+  row.style.display = "flex";
+  row.style.gap = "8px";
+  row.style.marginTop = "6px";
+
+  actions.forEach(a => {
+    const b = document.createElement("button");
+    b.textContent = a.label;
+    b.style.padding = "6px 10px";
+    b.style.border = "0";
+    b.style.borderRadius = "10px";
+    b.style.font = "700 12px Ubuntu";
+    b.style.letterSpacing = ".04em";
+    b.style.background = "rgba(255,255,255,.12)";
+    b.style.color = "var(--text)";
+    b.addEventListener("click", (e) => {
+      e.preventDefault();
+      b.disabled = true;
+      try { a.handler?.(); } finally { row.remove(); }
+    });
+    row.appendChild(b);
+  });
+
+  const chatLogEl = document.getElementById("chatLog");
+  const last = chatLogEl.lastElementChild;
+  if (last) last.appendChild(row);
+  else chatLogEl.appendChild(row);
+}
+
+async function confirmAdd(docId){
+  if (!docId){
+    pushMsg("I don’t have a document id to confirm. Try re-uploading.", "system");
+    return;
+  }
+  try {
+    const resp = await fetch("/records/confirm", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ doc_id: docId })
+    });
+    if (!resp.ok) {
+      const t = await resp.text().catch(()=>"(no details)");
+      pushMsg(`Couldn’t add: ${resp.status} ${t}`, "system");
+      return;
+    }
+    await resp.json().catch(()=>null);
+    pushMsg("Done! I added it to the database ✅", "system");
+  } catch (e) {
+    pushMsg(`Confirm failed: ${e?.message || e}`, "system");
+  }
+}
+    
+    /* ===== Initialize Gridstack for draggable widgets ===== */
+    window.addEventListener('load', () => {
+      const grid = GridStack.init({
+        column: 12,
+        cellHeight: 230,
+        margin: 16,  // back to 24px for proper spacing
+        float: false,  // prevents overlaps
+        animate: true,
+        disableResize: true,  // locks widget sizes
+        acceptWidgets: false,  // no adding new widgets
+        removable: false,  // can't remove widgets
+        draggable: {
+          handle: '.topbar',
+        },
+        // Enforce strict grid alignment
+        disableOneColumnMode: true,
+        staticGrid: false,
+      });
+      
+      // Re-init glow effects after Gridstack loads
+      setTimeout(() => {
+        document.querySelectorAll('.glow-card').forEach(card => {
+          initGlow(card);
+        });
+      }, 100);
+    });
+    /* ===== Initialize Gridstack for draggable widgets ===== */
+    /*  window.addEventListener('load', () => {
+      const grid = GridStack.init({
+        column: 12,
+        cellHeight: 180,  // reduced from 200
+        margin: 18,       // reduced from 24 to match your original gap
+        float: false,     // changed to false to prevent overlaps
+        animate: true,
+        disableResize: true,  // disable resizing to prevent layout issues
+        draggable: {
+          handle: '.topbar',
+        }
+      });
+      
+      // Re-init glow effects after Gridstack loads
+      setTimeout(() => {
+        document.querySelectorAll('.glow-card').forEach(card => {
+          initGlow(card);
+          card.style.cursor = 'grab';
+        });
+      }, 100);
+    });*/
+</script>
+</body>
+</html>
