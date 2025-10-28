@@ -913,6 +913,29 @@ body{
   display:flex;
   gap:8px;
 }
+
+/* Receipts widget */
+.receipts-content{ display:flex; flex-direction:column; height:100%; }
+.receipts-actions{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.receipts-actions .btn{ font-size:12px; letter-spacing:.08em; padding:9px 16px; }
+.receipts-hint{ color:var(--muted); font:500 11px Ubuntu; letter-spacing:.04em; }
+.receipts-status{ font:500 11px Ubuntu; color:var(--muted); letter-spacing:.03em; min-height:16px; margin-bottom:4px; transition:color .3s ease; }
+.receipts-status.error{ color:#ff9b7b; }
+.receipt-list{ flex:1; display:flex; flex-direction:column; gap:10px; overflow-y:auto; padding-right:4px; }
+.receipt-list::-webkit-scrollbar{ width:6px; }
+.receipt-list::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.15); border-radius:999px; }
+.receipt-card{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.06); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); transition:box-shadow .2s ease, background .2s ease; }
+.receipt-card:hover{ background:rgba(115,187,201,.12); box-shadow:inset 0 0 0 1px rgba(115,187,201,.35); }
+.receipt-thumb{ width:48px; height:48px; border-radius:10px; object-fit:cover; box-shadow:0 0 0 1px rgba(255,255,255,.18); cursor:pointer; flex-shrink:0; }
+.receipt-meta{ flex:1; min-width:0; }
+.receipt-meta .name{ font:600 13px/1.3 Ubuntu; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.receipt-meta .date{ font:500 11px/1.4 Ubuntu; color:var(--muted); letter-spacing:.04em; }
+.receipt-actions{ display:flex; flex-direction:column; gap:6px; }
+.receipt-action{ background:rgba(255,255,255,.08); border:none; border-radius:8px; color:var(--text); cursor:pointer; font:600 11px Ubuntu; letter-spacing:.05em; padding:4px 10px; text-decoration:none; text-transform:uppercase; text-align:center; transition:background .2s ease, color .2s ease; }
+.receipt-action:hover{ background:rgba(115,187,201,.28); }
+.receipt-action.danger{ background:rgba(255,118,118,.16); color:#ffcabd; }
+.receipt-action.danger:hover{ background:rgba(255,118,118,.28); color:#ffe3da; }
+.receipt-empty{ font:600 12px Ubuntu; color:var(--muted); text-align:center; padding:18px 0; border-radius:12px; background:rgba(255,255,255,.04); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); }
 </style>
 </head>
 <body>
@@ -1243,7 +1266,7 @@ if (document.readyState === 'loading') {
 </script>
 
 
-<!-- Financial Overview (donut) -->
+<!-- Receipts widget -->
 <div class="grid-stack-item" gs-w="4" gs-h="1" gs-x="4" gs-y="1">
   <div class="grid-stack-item-content">
     <div class="widget glow-card">
@@ -1254,30 +1277,216 @@ if (document.readyState === 'loading') {
       <div class="lucaflect lucaflect-left"><img src="/public/lucaflect.svg" alt=""></div>
       <div class="lucaflect lucaflect-right"><img src="/public/lucaflect.svg" alt=""></div>
       <div class="topbar">
-        <div class="title">Financial Overview</div>
+        <div class="title">Receipts</div>
         <div class="dots"><i></i><i></i><i></i></div>
       </div>
-      <div class="content" style="display:flex; gap:16px; align-items:center;">
-        <svg viewBox="0 0 120 120" width="120" height="120">
-          <defs>
-            <linearGradient id="donut" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#9fdce6"/><stop offset="100%" stop-color="#73bbc9"/>
-            </linearGradient>
-          </defs>
-          <circle cx="60" cy="60" r="40" stroke="rgba(255,255,255,.08)" stroke-width="14" fill="none"/>
-          <circle cx="60" cy="60" r="40" stroke="url(#donut)" stroke-width="14" fill="none"
-                  stroke-dasharray="188" stroke-dashoffset="60" stroke-linecap="round"/>
-          <circle cx="60" cy="60" r="28" fill="rgba(255,255,255,.04)" />
-        </svg>
-        <div>
-          <div class="small">Order Fulfillment:</div>
-          <div class="kpi"><div class="big">98%</div></div>
-          <div class="small">Next Shipment: <b>24 hrs</b></div>
+      <div class="content receipts-content">
+        <div class="receipts-actions">
+          <button class="btn" id="receiptAddBtn" type="button">Upload Receipts</button>
+          <div class="receipts-hint">Mini previews are saved locally.</div>
+          <input type="file" id="receiptFileInput" accept="image/*" multiple hidden>
         </div>
+        <div id="receiptStatus" class="receipts-status" aria-live="polite"></div>
+        <div id="receiptList" class="receipt-list" aria-live="polite"></div>
       </div>
     </div>
   </div>
 </div>
+
+<script>
+(function(){
+  const addBtn = document.getElementById('receiptAddBtn');
+  const fileInput = document.getElementById('receiptFileInput');
+  const listEl = document.getElementById('receiptList');
+  const statusEl = document.getElementById('receiptStatus');
+  if (!addBtn || !fileInput || !listEl) return;
+
+  const STORAGE_KEY = 'sfc_receipts_v1';
+  let receipts = [];
+  let storageEnabled = true;
+  let statusTimer = null;
+
+  function setStatus(message = '', type = 'info', persistent = false){
+    if (!statusEl) return;
+    statusEl.textContent = message;
+    statusEl.classList.toggle('error', type === 'error');
+    if (statusTimer) clearTimeout(statusTimer);
+    if (message && !persistent){
+      statusTimer = setTimeout(()=>{
+        statusEl.textContent = '';
+        statusEl.classList.remove('error');
+      }, 5000);
+    }
+  }
+
+  try {
+    const probe = '__sfc_receipts_probe__';
+    localStorage.setItem(probe, '1');
+    localStorage.removeItem(probe);
+  } catch (e) {
+    storageEnabled = false;
+    setStatus('Local storage is disabled; receipts stay only for this session.', 'error', true);
+  }
+
+  function loadReceipts(){
+    if (!storageEnabled) return [];
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    }catch(e){
+      console.warn('Failed to load receipts', e);
+      setStatus('Could not load saved receipts.', 'error');
+      return [];
+    }
+  }
+
+  function saveReceipts(){
+    if (!storageEnabled) return;
+    try{
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(receipts));
+    }catch(e){
+      console.warn('Failed to save receipts', e);
+      setStatus('Storage is full; remove receipts to save more.', 'error');
+    }
+  }
+
+  function formatDate(ts){
+    try {
+      return new Date(ts).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function renderReceipts(){
+    listEl.innerHTML = '';
+    if (!receipts.length){
+      const empty = document.createElement('div');
+      empty.className = 'receipt-empty';
+      empty.textContent = 'No receipts yet. Upload images to save them here.';
+      listEl.appendChild(empty);
+      return;
+    }
+
+    const ordered = receipts.slice().sort((a,b)=> (b.uploadedAt||0) - (a.uploadedAt||0));
+    for (const receipt of ordered){
+      const card = document.createElement('div');
+      card.className = 'receipt-card';
+
+      const thumb = document.createElement('img');
+      thumb.src = receipt.dataUrl;
+      thumb.alt = receipt.name ? `Receipt preview for ${receipt.name}` : 'Receipt preview';
+      thumb.title = 'Open full receipt';
+      thumb.className = 'receipt-thumb';
+      thumb.addEventListener('click', ()=>{
+        const win = window.open(receipt.dataUrl, '_blank');
+        if (!win){
+          setStatus('Pop-up blocked. Allow pop-ups to open receipts.', 'error');
+        }
+      });
+
+      const meta = document.createElement('div');
+      meta.className = 'receipt-meta';
+      const name = document.createElement('div');
+      name.className = 'name';
+      name.textContent = receipt.name || 'Receipt';
+      const date = document.createElement('div');
+      date.className = 'date';
+      date.textContent = formatDate(receipt.uploadedAt);
+      meta.appendChild(name);
+      meta.appendChild(date);
+
+      const actions = document.createElement('div');
+      actions.className = 'receipt-actions';
+
+      const viewLink = document.createElement('a');
+      viewLink.href = receipt.dataUrl;
+      viewLink.target = '_blank';
+      viewLink.rel = 'noopener';
+      viewLink.className = 'receipt-action';
+      viewLink.textContent = 'View';
+
+      const downloadLink = document.createElement('a');
+      downloadLink.href = receipt.dataUrl;
+      downloadLink.download = receipt.name || 'receipt';
+      downloadLink.className = 'receipt-action';
+      downloadLink.textContent = 'Download';
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.className = 'receipt-action danger';
+      deleteBtn.textContent = 'Delete';
+      deleteBtn.addEventListener('click', ()=>{
+        receipts = receipts.filter(r => r.id !== receipt.id);
+        saveReceipts();
+        renderReceipts();
+        setStatus('Receipt removed.');
+      });
+
+      actions.appendChild(viewLink);
+      actions.appendChild(downloadLink);
+      actions.appendChild(deleteBtn);
+
+      card.appendChild(thumb);
+      card.appendChild(meta);
+      card.appendChild(actions);
+
+      listEl.appendChild(card);
+    }
+  }
+
+  function handleFiles(files){
+    const imageFiles = Array.from(files || []).filter(file => file.type.startsWith('image/'));
+    if (!imageFiles.length){
+      setStatus('Only image receipts (JPG, PNG, HEIC) are supported right now.', 'error');
+      return;
+    }
+
+    let pending = imageFiles.length;
+    let success = 0;
+
+    imageFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = evt => {
+        receipts.unshift({
+          id: `rcpt-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,
+          name: file.name,
+          uploadedAt: Date.now(),
+          dataUrl: evt.target?.result || ''
+        });
+        success++;
+        finalize();
+      };
+      reader.onerror = () => {
+        console.warn('Failed to read receipt', file.name);
+        setStatus(`Could not read ${file.name}.`, 'error');
+        finalize();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function finalize(){
+      pending--;
+      if (pending <= 0){
+        if (success){
+          saveReceipts();
+          renderReceipts();
+          setStatus(`${success} receipt${success>1?'s':''} saved.`);
+        }
+        fileInput.value = '';
+      }
+    }
+  }
+
+  addBtn.addEventListener('click', ()=> fileInput.click());
+  fileInput.addEventListener('change', event => handleFiles(event.target.files));
+
+  receipts = loadReceipts();
+  renderReceipts();
+})();
+</script>
 
 <!-- Compliance & Regulatory -->
 <div class="grid-stack-item" gs-w="4" gs-h="1" gs-x="8" gs-y="1">
