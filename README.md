@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Business Hub
 
 Business Hub is a unified workspace for ingesting business documents, extracting structured data, organizing conversations, and filling PDF forms using CSV mapping profiles. This repository contains:
@@ -65,3 +66,7 @@ pytest
 ## License
 
 MIT
+=======
+# SmartFileCabinet
+A chatbased file cabinet system
+>>>>>>> df6a47a1ef8214a98b6f3b1c4e26200518d61989
