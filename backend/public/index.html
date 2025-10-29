@@ -1776,57 +1776,176 @@ async function handleFiles(fileList){
   const [file] = [...fileList];
   if (!file) return;
 
+  pushMsg(`Uploading “${file.name}”…`, "system");
+
+  const dupStatus = await checkForDuplicates(file);
+  if (!dupStatus || dupStatus.status !== 'proceed') {
+    return;
+  }
+
+  await ingestFile(file);
+}
+
+async function checkForDuplicates(file){
   const fd = new FormData();
   fd.append("file", file);
-
-  pushMsg(`Uploading “${file.name}”…`, "system");
 
   let resp;
   try {
     resp = await fetch("/upload_dupcheck", { method: "POST", body: fd });
   } catch (e) {
+    pushMsg(`Network error while checking duplicates: ${e?.message || e}`, "system");
+    return { status: 'abort' };
+  }
+
+  let data = null;
+  let textFallback = '';
+  try {
+    data = await resp.json();
+  } catch (e) {
+    textFallback = await resp.text().catch(() => " (no details)");
+  }
+
+  if (resp.status === 409) {
+    const detail = data?.detail || data || {};
+    const reason = detail.reason || 'Exact duplicate';
+    const existingId = detail.existing_document_id;
+    const matches = Array.isArray(detail.matches) ? detail.matches : [];
+    const lines = [`⚠️ ${reason}`];
+    if (existingId) {
+      lines.push(`Existing document id: ${existingId}`);
+    }
+    if (matches.length) {
+      lines.push('Top matches:');
+      matches.slice(0, 3).forEach(m => {
+        const sim = typeof m.similarity !== 'undefined' ? ` (sim ${m.similarity})` : '';
+        lines.push(`• #${m.id}${sim}`);
+      });
+    }
+    pushMsg(lines.join('\n'), 'system');
+    return { status: 'abort' };
+  }
+
+  if (!resp.ok) {
+    const detail = data ? JSON.stringify(data) : textFallback;
+    pushMsg(`Duplicate check failed (${resp.status}): ${detail || '(no details)'}`, 'system');
+    return { status: 'abort' };
+  }
+
+  const notice = data?.notice;
+  const duplicateSuspect = data?.duplicate_suspect;
+
+  if (notice) {
+    pushMsg(notice, 'system');
+  }
+
+  if (duplicateSuspect) {
+    const reason = duplicateSuspect.reason || 'Possible duplicate detected.';
+    pushMsg(`⚠️ ${reason}`, 'system');
+
+    const matches = (duplicateSuspect.matches || []).slice(0, 5).map(m => {
+      const sim = typeof m.similarity !== 'undefined' ? ` (sim ${m.similarity})` : '';
+      return `<li>#${m.id}${sim}</li>`;
+    }).join('') || '<li>(no details)</li>';
+
+    showModal({
+      title: 'Potential Duplicate',
+      body: `The assistant found possible matches:\n\n<ul>${matches}</ul>\n\nAdd the document anyway?`,
+      actions: [
+        {
+          label: 'Add Anyway',
+          onClick: () => {
+            pushMsg('Adding despite duplicate warning…', 'system');
+            ingestFile(file).catch(err => {
+              console.error('Ingest after duplicate warning failed', err);
+            });
+          }
+        },
+        {
+          label: 'Cancel',
+          onClick: () => pushMsg('Okay, I skipped ingestion.', 'system')
+        }
+      ]
+    });
+
+    return { status: 'handled' };
+  }
+
+  return { status: 'proceed' };
+}
+
+async function ingestFile(file){
+  const fd = new FormData();
+  fd.append("file", file);
+
+  let resp;
+  try {
+    resp = await fetch("/ingest", { method: "POST", body: fd });
+  } catch (e) {
     pushMsg(`Network error while uploading: ${e?.message || e}`, "system");
     return;
   }
+
+  let data;
+  try {
+    data = await resp.json();
+  } catch (e) {
+    const fallback = await resp.text().catch(() => " (no details)");
+    pushMsg(`Server response was not JSON (${resp.status}): ${fallback}`, "system");
+    return;
+  }
+
   if (!resp.ok) {
-    const t = await resp.text().catch(()=>" (no details)");
-    pushMsg(`Server error (${resp.status}): ${t}`, "system");
+    const detail = typeof data === 'object' && data !== null ? JSON.stringify(data) : String(data ?? '');
+    pushMsg(`Server error (${resp.status}): ${detail || '(no details)'}`, "system");
     return;
   }
 
-  const data = await resp.json();
-  if (resp.status === 409) {
-    const detail = data?.detail || data;
-    showModal({title:'Exact duplicate', body:'This file matches a previously uploaded document.\n\nI can open the existing one for you.', actions:[{label:'OK'}]});
-    return;
-  }
-  const { duplicate_suspect, proposed_record, document, extraction, duplicate } = data || {};
-  const suggestion =
-    extraction?.raw_json?.suggestion ||
-    "I parsed the file. Add it to the database?";
+  const { document, extraction } = data || {};
+  const docId = document?.id;
+  const fields = extraction?.fields || {};
+  const rawJson = extraction?.raw_json || {};
+  const classifier = rawJson?.classifier?.payload || {};
+  const docType = classifier?.type || document?.type || 'document';
 
-  let msg = suggestion;
-  if (duplicate_suspect) {
-    msg += `\n\n⚠️ Possible duplicate: ${duplicate_suspect.reason||''}`;
-  }
+  const vendor = typeof fields.vendor === 'string' && fields.vendor.trim() ? fields.vendor.trim() : null;
+  const total = typeof fields.total === 'number' ? fields.total : null;
+  const due = typeof fields.due_date === 'string' ? fields.due_date : null;
+  const summary = typeof fields.summary === 'string' ? fields.summary : null;
 
-  pushMsg(msg, "system");
-
-  if (duplicate_suspect) {
-    const list = (duplicate_suspect.matches||[]).slice(0,3).map(m=>`<li>#${m.id} ${m.similarity?`(sim ${m.similarity})`:''}</li>`).join('');
-    showModal({
-      title: 'Potential Duplicate',
-      body: `The assistant found possible matches:\n\n<ul>${list||'<li>(no details)</li>'}</ul>\n\nAdd anyway?`,
-      actions:[
-        {label:'Add Anyway', onClick:()=> pushMsg('Okay — add flow continues (server should expose confirm/force endpoint).','system')},
-        {label:'Cancel'}
-      ]
-    });
+  const suggestion = rawJson?.suggestion;
+  const lines = [];
+  if (suggestion) {
+    lines.push(suggestion);
   } else {
-    addActionButtons([
-      { label: 'Add to DB', handler: () => confirmAdd(document?.id) },
-      { label: 'Cancel',    handler: () => pushMsg('Okay, I won’t add it.', 'system') }
-    ]);
+    lines.push(`I ingested ${file.name} as ${docType}.`);
+  }
+  if (vendor) {
+    lines.push(`Vendor: ${vendor}`);
+  }
+  if (total !== null && !Number.isNaN(total)) {
+    lines.push(`Total: $${Number(total).toFixed(2)}`);
+  }
+  if (due) {
+    lines.push(`Due: ${due}`);
+  }
+  if (summary) {
+    lines.push(`Summary: ${summary}`);
+  }
+  if (docId) {
+    lines.push(`Stored as ${docId} in the database ✅`);
+  } else {
+    lines.push('Ingestion succeeded, but no document id was returned.');
+  }
+
+  pushMsg(lines.join('\n'), "system");
+
+  if (typeof loadAP === 'function') {
+    try {
+      await loadAP();
+    } catch (e) {
+      console.warn('Failed to refresh AP widget after ingest', e);
+    }
   }
 }
 
