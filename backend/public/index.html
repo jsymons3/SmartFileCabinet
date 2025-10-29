@@ -2070,16 +2070,7 @@ async function ingestFile(file){
   const fields = extraction?.fields || {};
   const rawJson = extraction?.raw_json || {};
   const classifier = rawJson?.classifier?.payload || {};
-  const docType = (classifier?.type || document?.type || 'document').toString().toLowerCase();
-  const typeFriendlyMap = {
-    'vendor_bill_ap': 'vendor bill',
-    'invoice_ar': 'invoice',
-    'invoice': 'invoice',
-    'receipt': 'receipt',
-    'purchase_order': 'purchase order'
-  };
-  const typeLabel = (typeFriendlyMap[docType] || docType || 'document').replace(/_/g, ' ');
-  const typeArticle = /^[aeiou]/i.test(typeLabel) ? 'an' : 'a';
+  const docType = classifier?.type || document?.type || 'document';
 
   const vendor = typeof fields.vendor === 'string' && fields.vendor.trim() ? fields.vendor.trim() : null;
   const total = typeof fields.total === 'number' ? fields.total : null;
@@ -2087,17 +2078,17 @@ async function ingestFile(file){
   const summary = typeof fields.summary === 'string' ? fields.summary : null;
 
   const suggestion = rawJson?.suggestion;
-  const totalDisplay = total !== null && !Number.isNaN(total) ? formatMoney(Number(total)) : null;
-  const introLine = suggestion
-    || (vendor && totalDisplay
-      ? `I think this is ${typeArticle} ${typeLabel} from ${vendor} totaling ${totalDisplay}.`
-      : `I ingested ${file.name} as ${typeLabel}.`);
-  const lines = [introLine, "Would you like me to add this to TDS Distilling's database?"];
+  const lines = [];
+  if (suggestion) {
+    lines.push(suggestion);
+  } else {
+    lines.push(`I ingested ${file.name} as ${docType}.`);
+  }
   if (vendor) {
     lines.push(`Vendor: ${vendor}`);
   }
-  if (totalDisplay) {
-    lines.push(`Total: ${totalDisplay}`);
+  if (total !== null && !Number.isNaN(total)) {
+    lines.push(`Total: $${Number(total).toFixed(2)}`);
   }
   if (due) {
     lines.push(`Due: ${due}`);
@@ -2106,18 +2097,19 @@ async function ingestFile(file){
     lines.push(`Summary: ${summary}`);
   }
   if (docId) {
-    lines.push(`Document id: ${docId}`);
+    lines.push(`Stored as ${docId} in the database ✅`);
   } else {
     lines.push('Ingestion succeeded, but no document id was returned.');
   }
 
   pushMsg(lines.join('\n'), "system");
 
-  if (docId) {
-    addActionButtons([
-      { label: 'Yes, add it', handler: () => confirmAdd(docId) },
-      { label: 'No, not yet', handler: () => pushMsg("Okay, I’ll hold off on adding it.", "system") }
-    ]);
+  if (typeof loadAP === 'function') {
+    try {
+      await loadAP();
+    } catch (e) {
+      console.warn('Failed to refresh AP widget after ingest', e);
+    }
   }
 
   if (typeof loadAP === 'function') {
