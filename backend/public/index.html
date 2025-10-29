@@ -2142,6 +2142,14 @@ async function ingestFile(file){
       { label: 'No, not yet', handler: () => pushMsg("Okay, I’ll hold off on adding it.", "system") }
     ]);
   }
+
+  if (typeof loadAP === 'function') {
+    try {
+      await loadAP();
+    } catch (e) {
+      console.warn('Failed to refresh AP widget after ingest', e);
+    }
+  }
 }
 
 /* ===== Assistant Panel: Draggable & Collapsible ===== */
