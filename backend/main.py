@@ -215,6 +215,8 @@ def confirm_record(payload: dict = Body(...)):
     We create a Record if it doesn't exist yet. If ingest already saved it, this is basically idempotent.
     """
     doc_id = payload.get("doc_id")
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="doc_id is required")
     fields = payload.get("fields") or {}
     model = payload.get("model") or "o3"
     schema = payload.get("schema") or "generic_v1"
@@ -232,8 +234,9 @@ def confirm_record(payload: dict = Body(...)):
     doc_type = type_map.get(kind, DocumentType.OTHER)
 
     # If the frontend passed an extraction, we could upsert it; otherwise create a slim one.
+    extraction_id = payload.get("extraction_id")
     extraction = Extraction(
-        id=f"ext_{uuid.uuid4().hex[:12]}",
+        id=extraction_id or f"ext_{uuid.uuid4().hex[:12]}",
         doc_id=doc_id,
         model=model,
         schema=schema,

@@ -1567,6 +1567,7 @@ if (document.readyState === 'loading') {
       fields,
       schema: extraction?.schema || 'receipt_v1',
       model: extraction?.model,
+      extraction_id: extraction?.id,
       raw_json: extraction?.raw_json || {},
       confidence: extraction?.confidence,
     };
@@ -2080,7 +2081,7 @@ async function ingestFile(file){
   };
   const typeLabel = (typeFriendlyMap[docType] || docType || 'document').replace(/_/g, ' ');
   const typeArticle = /^[aeiou]/i.test(typeLabel) ? 'an' : 'a';
-  
+
   const vendor = typeof fields.vendor === 'string' && fields.vendor.trim() ? fields.vendor.trim() : null;
   const total = typeof fields.total === 'number' ? fields.total : null;
   const due = typeof fields.due_date === 'string' ? fields.due_date : null;
@@ -2092,7 +2093,11 @@ async function ingestFile(file){
     || (vendor && totalDisplay
       ? `I think this is ${typeArticle} ${typeLabel} from ${vendor} totaling ${totalDisplay}.`
       : `I ingested ${file.name} as ${typeLabel}.`);
-  const lines = [introLine, "Would you like me to add this to TDS Distilling's database?"];
+  const questionText = "Would you like me to add this to TDS Distilling's database?";
+  const lines = [introLine];
+  if (!introLine.toLowerCase().includes(questionText.toLowerCase())) {
+    lines.push(questionText);
+  }
   if (vendor) {
     lines.push(`Vendor: ${vendor}`);
   }
@@ -2114,8 +2119,26 @@ async function ingestFile(file){
   pushMsg(lines.join('\n'), "system");
 
   if (docId) {
+    const confirmPayload = {
+      doc_id: docId,
+      type: docType,
+      fields,
+      schema: extraction?.schema,
+      model: extraction?.model,
+      confidence: extraction?.confidence,
+      extraction_id: extraction?.id,
+      raw_json: rawJson,
+    };
+
     addActionButtons([
-      { label: 'Yes, add it', handler: () => confirmAdd(docId) },
+      {
+        label: 'Yes, add it',
+        handler: () => confirmAdd(docId, {
+          payload: confirmPayload,
+          vendor,
+          totalDisplay,
+        })
+      },
       { label: 'No, not yet', handler: () => pushMsg("Okay, I’ll hold off on adding it.", "system") }
     ]);
   }
@@ -2297,14 +2320,36 @@ async function confirmRecord(payload){
   return true;
 }
 
-async function confirmAdd(docId){
-  if (!docId){
+async function confirmAdd(docId, options = {}){
+  const baseId = docId || options?.payload?.doc_id;
+  if (!baseId){
     pushMsg("I don’t have a document id to confirm. Try re-uploading.", "system");
     return;
   }
+
+  const payload = options?.payload && typeof options.payload === 'object'
+    ? { ...options.payload, doc_id: options.payload.doc_id || baseId }
+    : { doc_id: baseId };
+
   try {
-    await confirmRecord({ doc_id: docId });
-    pushMsg(`Stored as ${docId} in the database ✅`, "system");
+    await confirmRecord(payload);
+
+    const details = [`Stored as ${payload.doc_id} in the database ✅`];
+    if (options.vendor) {
+      details.push(`Vendor: ${options.vendor}`);
+    }
+    if (options.totalDisplay) {
+      details.push(`Total: ${options.totalDisplay}`);
+    }
+    pushMsg(details.join('\n'), "system");
+
+    if (typeof loadAP === 'function') {
+      try {
+        await loadAP();
+      } catch (e) {
+        console.warn('Failed to refresh AP widget after confirm', e);
+      }
+    }
   } catch (e) {
     pushMsg(`Confirm failed: ${e?.message || e}`, "system");
   }
