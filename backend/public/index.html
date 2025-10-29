@@ -927,12 +927,17 @@ body{
 .receipt-card{ display:flex; align-items:center; gap:12px; padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.06); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08); transition:box-shadow .2s ease, background .2s ease; }
 .receipt-card:hover{ background:rgba(115,187,201,.12); box-shadow:inset 0 0 0 1px rgba(115,187,201,.35); }
 .receipt-thumb{ width:48px; height:48px; border-radius:10px; object-fit:cover; box-shadow:0 0 0 1px rgba(255,255,255,.18); cursor:pointer; flex-shrink:0; }
+.receipt-thumb.placeholder{ display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.04); color:var(--muted); font:600 10px Ubuntu; cursor:default; }
 .receipt-meta{ flex:1; min-width:0; }
 .receipt-meta .name{ font:600 13px/1.3 Ubuntu; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.receipt-meta .amount{ font:700 13px/1.4 Ubuntu; letter-spacing:.04em; margin-top:2px; }
 .receipt-meta .date{ font:500 11px/1.4 Ubuntu; color:var(--muted); letter-spacing:.04em; }
+.receipt-meta .doc-id{ font:500 10px/1.4 Ubuntu; color:var(--muted); letter-spacing:.04em; margin-top:3px; word-break:break-all; }
 .receipt-actions{ display:flex; flex-direction:column; gap:6px; }
 .receipt-action{ background:rgba(255,255,255,.08); border:none; border-radius:8px; color:var(--text); cursor:pointer; font:600 11px Ubuntu; letter-spacing:.05em; padding:4px 10px; text-decoration:none; text-transform:uppercase; text-align:center; transition:background .2s ease, color .2s ease; }
 .receipt-action:hover{ background:rgba(115,187,201,.28); }
+.receipt-action.muted{ background:rgba(255,255,255,.04); color:var(--muted); cursor:not-allowed; }
+.receipt-action.muted:hover{ background:rgba(255,255,255,.04); color:var(--muted); }
 .receipt-action.danger{ background:rgba(255,118,118,.16); color:#ffcabd; }
 .receipt-action.danger:hover{ background:rgba(255,118,118,.28); color:#ffe3da; }
 .receipt-empty{ font:600 12px Ubuntu; color:var(--muted); text-align:center; padding:18px 0; border-radius:12px; background:rgba(255,255,255,.04); box-shadow:inset 0 0 0 1px rgba(255,255,255,.06); }
@@ -1283,7 +1288,7 @@ if (document.readyState === 'loading') {
       <div class="content receipts-content">
         <div class="receipts-actions">
           <button class="btn" id="receiptAddBtn" type="button">Upload Receipts</button>
-          <div class="receipts-hint">Mini previews are saved locally.</div>
+          <div class="receipts-hint">Uploads are parsed and saved to the finance database.</div>
           <input type="file" id="receiptFileInput" accept="image/*" multiple hidden>
         </div>
         <div id="receiptStatus" class="receipts-status" aria-live="polite"></div>
@@ -1301,8 +1306,9 @@ if (document.readyState === 'loading') {
   const statusEl = document.getElementById('receiptStatus');
   if (!addBtn || !fileInput || !listEl) return;
 
-  const STORAGE_KEY = 'sfc_receipts_v1';
+  const PREVIEW_STORAGE_KEY = 'sfc_receipt_previews_v1';
   let receipts = [];
+  let previews = {};
   let storageEnabled = true;
   let statusTimer = null;
 
@@ -1325,39 +1331,56 @@ if (document.readyState === 'loading') {
     localStorage.removeItem(probe);
   } catch (e) {
     storageEnabled = false;
-    setStatus('Local storage is disabled; receipts stay only for this session.', 'error', true);
+    setStatus('Receipt previews will only persist for this session.', 'error', true);
   }
 
-  function loadReceipts(){
-    if (!storageEnabled) return [];
+  function loadPreviews(){
+    if (!storageEnabled) return {};
     try{
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return [];
+      const raw = localStorage.getItem(PREVIEW_STORAGE_KEY);
+      if (!raw) return {};
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed : [];
+      return parsed && typeof parsed === 'object' ? parsed : {};
     }catch(e){
-      console.warn('Failed to load receipts', e);
-      setStatus('Could not load saved receipts.', 'error');
-      return [];
+      console.warn('Failed to load receipt previews', e);
+      setStatus('Could not restore stored previews.', 'error');
+      return {};
     }
   }
 
-  function saveReceipts(){
+  function savePreviews(){
     if (!storageEnabled) return;
     try{
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(receipts));
+      localStorage.setItem(PREVIEW_STORAGE_KEY, JSON.stringify(previews));
     }catch(e){
-      console.warn('Failed to save receipts', e);
-      setStatus('Storage is full; remove receipts to save more.', 'error');
+      console.warn('Failed to save receipt previews', e);
+      setStatus('Storage is full; previews may be discarded.', 'error');
     }
   }
 
-  function formatDate(ts){
+  function getPreview(docId){
+    if (!docId) return undefined;
+    return previews?.[docId];
+  }
+
+  function formatDate(value){
+    if (!value) return '';
     try {
-      return new Date(ts).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      const date = typeof value === 'number' ? new Date(value) : new Date(String(value));
+      if (Number.isNaN(date.getTime())) return '';
+      return date.toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
     } catch (e) {
       return '';
     }
+  }
+
+  function formatAmount(fields){
+    if (!fields) return null;
+    const amount = fields.total ?? fields.amount ?? fields.subtotal;
+    if (amount === null || typeof amount === 'undefined') return null;
+    const raw = typeof amount === 'number' ? amount : Number(String(amount).replace(/[^0-9.-]/g, ''));
+    const num = Number(raw);
+    return Number.isNaN(num) ? null : formatMoney(num);
   }
 
   function renderReceipts(){
@@ -1365,68 +1388,108 @@ if (document.readyState === 'loading') {
     if (!receipts.length){
       const empty = document.createElement('div');
       empty.className = 'receipt-empty';
-      empty.textContent = 'No receipts yet. Upload images to save them here.';
+      empty.textContent = 'No receipts yet. Upload images to capture and store them.';
       listEl.appendChild(empty);
       return;
     }
 
-    const ordered = receipts.slice().sort((a,b)=> (b.uploadedAt||0) - (a.uploadedAt||0));
-    for (const receipt of ordered){
+    const ordered = receipts.slice().sort((a,b)=>{
+      const at = new Date(a.created_at || a.createdAt || 0).getTime();
+      const bt = new Date(b.created_at || b.createdAt || 0).getTime();
+      return bt - at;
+    });
+
+    for (const record of ordered){
       const card = document.createElement('div');
       card.className = 'receipt-card';
 
-      const thumb = document.createElement('img');
-      thumb.src = receipt.dataUrl;
-      thumb.alt = receipt.name ? `Receipt preview for ${receipt.name}` : 'Receipt preview';
-      thumb.title = 'Open full receipt';
-      thumb.className = 'receipt-thumb';
-      thumb.addEventListener('click', ()=>{
-        const win = window.open(receipt.dataUrl, '_blank');
-        if (!win){
-          setStatus('Pop-up blocked. Allow pop-ups to open receipts.', 'error');
-        }
-      });
+      const docId = record.document_id || record.doc_id || '';
+      const preview = getPreview(docId);
+      let thumb;
+      if (preview){
+        thumb = document.createElement('img');
+        thumb.src = preview;
+        thumb.alt = record.fields?.merchant ? `Receipt preview for ${record.fields.merchant}` : 'Receipt preview';
+        thumb.title = 'Open full receipt';
+        thumb.className = 'receipt-thumb';
+        thumb.addEventListener('click', ()=>{
+          const win = window.open(preview, '_blank');
+          if (!win){
+            setStatus('Pop-up blocked. Allow pop-ups to open receipts.', 'error');
+          }
+        });
+      } else {
+        thumb = document.createElement('div');
+        thumb.className = 'receipt-thumb placeholder';
+        thumb.textContent = 'No preview';
+        thumb.title = 'Preview not available';
+      }
 
       const meta = document.createElement('div');
       meta.className = 'receipt-meta';
       const name = document.createElement('div');
       name.className = 'name';
-      name.textContent = receipt.name || 'Receipt';
-      const date = document.createElement('div');
-      date.className = 'date';
-      date.textContent = formatDate(receipt.uploadedAt);
+      const fields = record.fields || {};
+      const merchant = fields.merchant || fields.vendor || fields.payee || record.vendor || 'Receipt';
+      name.textContent = merchant;
+
+      const amountLine = document.createElement('div');
+      amountLine.className = 'amount';
+      const amountText = formatAmount(fields);
+      amountLine.textContent = amountText || 'Amount pending';
+
+      const details = document.createElement('div');
+      details.className = 'date';
+      const category = fields.category || fields.expense_type || fields.type || '';
+      const when = fields.datetime || fields.date || record.created_at;
+      const parts = [];
+      if (category) parts.push(category);
+      const whenText = formatDate(when);
+      if (whenText) parts.push(whenText);
+      details.textContent = parts.join(' • ');
+
+      const docLine = document.createElement('div');
+      docLine.className = 'doc-id';
+      docLine.textContent = docId ? `Doc: ${docId}` : '';
+
       meta.appendChild(name);
-      meta.appendChild(date);
+      meta.appendChild(amountLine);
+      if (parts.length) meta.appendChild(details);
+      if (docId) meta.appendChild(docLine);
 
       const actions = document.createElement('div');
       actions.className = 'receipt-actions';
 
-      const viewLink = document.createElement('a');
-      viewLink.href = receipt.dataUrl;
-      viewLink.target = '_blank';
-      viewLink.rel = 'noopener';
-      viewLink.className = 'receipt-action';
-      viewLink.textContent = 'View';
+      if (preview){
+        const viewLink = document.createElement('a');
+        viewLink.href = preview;
+        viewLink.target = '_blank';
+        viewLink.rel = 'noopener';
+        viewLink.className = 'receipt-action';
+        viewLink.textContent = 'View';
 
-      const downloadLink = document.createElement('a');
-      downloadLink.href = receipt.dataUrl;
-      downloadLink.download = receipt.name || 'receipt';
-      downloadLink.className = 'receipt-action';
-      downloadLink.textContent = 'Download';
+        const downloadLink = document.createElement('a');
+        downloadLink.href = preview;
+        downloadLink.download = merchant ? `${merchant}-receipt` : 'receipt';
+        downloadLink.className = 'receipt-action';
+        downloadLink.textContent = 'Download';
+
+        actions.appendChild(viewLink);
+        actions.appendChild(downloadLink);
+      } else {
+        const placeholderBtn = document.createElement('button');
+        placeholderBtn.type = 'button';
+        placeholderBtn.className = 'receipt-action muted';
+        placeholderBtn.textContent = 'No preview';
+        placeholderBtn.disabled = true;
+        actions.appendChild(placeholderBtn);
+      }
 
       const deleteBtn = document.createElement('button');
       deleteBtn.type = 'button';
       deleteBtn.className = 'receipt-action danger';
       deleteBtn.textContent = 'Delete';
-      deleteBtn.addEventListener('click', ()=>{
-        receipts = receipts.filter(r => r.id !== receipt.id);
-        saveReceipts();
-        renderReceipts();
-        setStatus('Receipt removed.');
-      });
-
-      actions.appendChild(viewLink);
-      actions.appendChild(downloadLink);
+      deleteBtn.addEventListener('click', ()=> deleteReceipt(record));
       actions.appendChild(deleteBtn);
 
       card.appendChild(thumb);
@@ -1437,54 +1500,156 @@ if (document.readyState === 'loading') {
     }
   }
 
-  function handleFiles(files){
+  async function deleteReceipt(record){
+    const ok = confirm('Remove this receipt from the database?');
+    if (!ok) return;
+    try{
+      const res = await fetch(`/records/${record.id}`, { method:'DELETE' });
+      if (!res.ok) throw new Error(await res.text());
+      receipts = receipts.filter(r => r.id !== record.id);
+      const docId = record.document_id || record.doc_id;
+      if (docId && previews[docId]){
+        delete previews[docId];
+        savePreviews();
+      }
+      renderReceipts();
+      setStatus('Receipt removed.');
+    }catch(e){
+      setStatus(`Delete failed: ${e?.message || e}`, 'error', true);
+    }
+  }
+
+  function readFileAsDataURL(file){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = evt => resolve(evt.target?.result || '');
+      reader.onerror = err => reject(err);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function ingestReceipt(file, previewDataUrl){
+    const fd = new FormData();
+    fd.append('file', file);
+
+    let resp;
+    try {
+      resp = await fetch('/ingest', { method: 'POST', body: fd });
+    } catch (e) {
+      throw new Error(`network error: ${e?.message || e}`);
+    }
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch (e) {
+      const fallback = await resp.text().catch(() => '');
+      throw new Error(`invalid response (${resp.status}): ${fallback || '(no details)'}`);
+    }
+
+    if (!resp.ok) {
+      const detail = typeof data === 'object' ? JSON.stringify(data) : String(data ?? '');
+      throw new Error(`server error (${resp.status}): ${detail || '(no details)'}`);
+    }
+
+    const { document, extraction } = data || {};
+    const docId = document?.id;
+    if (!docId) {
+      throw new Error('ingestion succeeded without a document id');
+    }
+
+    const fields = extraction?.fields || {};
+    const classifierType = extraction?.raw_json?.classifier?.payload?.type;
+    const inferredType = (classifierType || document?.type || '').toString().toLowerCase();
+    const payload = {
+      doc_id: docId,
+      type: 'receipt',
+      fields,
+      schema: extraction?.schema || 'receipt_v1',
+      model: extraction?.model,
+      extraction_id: extraction?.id,
+      raw_json: extraction?.raw_json || {},
+      confidence: extraction?.confidence,
+    };
+
+    await confirmRecord(payload);
+
+    if (previewDataUrl) {
+      previews[docId] = previewDataUrl;
+      savePreviews();
+    }
+
+    return { docId, fields, docType: inferredType };
+  }
+
+  async function handleFiles(files){
     const imageFiles = Array.from(files || []).filter(file => file.type.startsWith('image/'));
     if (!imageFiles.length){
       setStatus('Only image receipts (JPG, PNG, HEIC) are supported right now.', 'error');
       return;
     }
 
-    let pending = imageFiles.length;
     let success = 0;
-
-    imageFiles.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = evt => {
-        receipts.unshift({
-          id: `rcpt-${Date.now()}-${Math.random().toString(16).slice(2,8)}`,
-          name: file.name,
-          uploadedAt: Date.now(),
-          dataUrl: evt.target?.result || ''
-        });
-        success++;
-        finalize();
-      };
-      reader.onerror = () => {
-        console.warn('Failed to read receipt', file.name);
-        setStatus(`Could not read ${file.name}.`, 'error');
-        finalize();
-      };
-      reader.readAsDataURL(file);
-    });
-
-    function finalize(){
-      pending--;
-      if (pending <= 0){
-        if (success){
-          saveReceipts();
-          renderReceipts();
-          setStatus(`${success} receipt${success>1?'s':''} saved.`);
-        }
-        fileInput.value = '';
+    let failures = 0;
+    for (const file of imageFiles){
+      setStatus(`Processing ${file.name}…`, 'info');
+      let preview = null;
+      try {
+        preview = await readFileAsDataURL(file);
+      } catch (e) {
+        console.warn('Failed to read preview for', file.name, e);
       }
+
+      try {
+        const result = await ingestReceipt(file, preview);
+        success++;
+        const amountText = formatAmount(result.fields) || '';
+        const merchant = result.fields?.merchant || result.fields?.vendor || file.name;
+        const typeTag = result.docType && result.docType !== 'receipt' ? `type: ${result.docType}` : '';
+        const summary = [merchant, amountText, typeTag].filter(Boolean).join(' • ');
+        setStatus(`Captured ${summary || file.name}.`, 'info');
+      } catch (e) {
+        setStatus(`Failed to process ${file.name}: ${e?.message || e}`, 'error', true);
+        failures++;
+      }
+    }
+
+    fileInput.value = '';
+    await refreshReceipts();
+    if (success && failures){
+      setStatus(`Saved ${success} receipt${success>1?'s':''}; ${failures} failed.`, 'info');
+    } else if (success){
+      setStatus(`Saved ${success} receipt${success>1?'s':''} to the database.`, 'info');
+    } else if (failures){
+      setStatus('No receipts were saved.', 'error', true);
+    }
+  }
+
+  async function refreshReceipts(showLoading = false){
+    if (showLoading) {
+      setStatus('Loading receipts…', 'info');
+    }
+    try {
+      const res = await fetch('/records?type=receipt');
+      if (!res.ok) throw new Error(await res.text());
+      const items = await res.json();
+      receipts = Array.isArray(items) ? items : [];
+      renderReceipts();
+      if (!receipts.length) {
+        setStatus('No receipts in the database yet.', 'info');
+      }
+    } catch (e) {
+      receipts = [];
+      renderReceipts();
+      setStatus(`Failed to load receipts: ${e?.message || e}`, 'error', true);
     }
   }
 
   addBtn.addEventListener('click', ()=> fileInput.click());
   fileInput.addEventListener('change', event => handleFiles(event.target.files));
 
-  receipts = loadReceipts();
-  renderReceipts();
+  previews = loadPreviews();
+  refreshReceipts(true);
 })();
 </script>
 
@@ -1776,56 +1941,205 @@ async function handleFiles(fileList){
   const [file] = [...fileList];
   if (!file) return;
 
+  pushMsg(`Uploading “${file.name}”…`, "system");
+
+  const dupStatus = await checkForDuplicates(file);
+  if (!dupStatus || dupStatus.status !== 'proceed') {
+    return;
+  }
+
+  await ingestFile(file);
+}
+
+async function checkForDuplicates(file){
   const fd = new FormData();
   fd.append("file", file);
-
-  pushMsg(`Uploading “${file.name}”…`, "system");
 
   let resp;
   try {
     resp = await fetch("/upload_dupcheck", { method: "POST", body: fd });
   } catch (e) {
+    pushMsg(`Network error while checking duplicates: ${e?.message || e}`, "system");
+    return { status: 'abort' };
+  }
+
+  let data = null;
+  let textFallback = '';
+  try {
+    data = await resp.json();
+  } catch (e) {
+    textFallback = await resp.text().catch(() => " (no details)");
+  }
+
+  if (resp.status === 409) {
+    const detail = data?.detail || data || {};
+    const reason = detail.reason || 'Exact duplicate';
+    const existingId = detail.existing_document_id;
+    const matches = Array.isArray(detail.matches) ? detail.matches : [];
+    const lines = [`⚠️ ${reason}`];
+    if (existingId) {
+      lines.push(`Existing document id: ${existingId}`);
+    }
+    if (matches.length) {
+      lines.push('Top matches:');
+      matches.slice(0, 3).forEach(m => {
+        const sim = typeof m.similarity !== 'undefined' ? ` (sim ${m.similarity})` : '';
+        lines.push(`• #${m.id}${sim}`);
+      });
+    }
+    pushMsg(lines.join('\n'), 'system');
+    return { status: 'abort' };
+  }
+
+  if (!resp.ok) {
+    const detail = data ? JSON.stringify(data) : textFallback;
+    pushMsg(`Duplicate check failed (${resp.status}): ${detail || '(no details)'}`, 'system');
+    return { status: 'abort' };
+  }
+
+  const notice = data?.notice;
+  const duplicateSuspect = data?.duplicate_suspect;
+
+  if (notice) {
+    pushMsg(notice, 'system');
+  }
+
+  if (duplicateSuspect) {
+    const reason = duplicateSuspect.reason || 'Possible duplicate detected.';
+    pushMsg(`⚠️ ${reason}`, 'system');
+
+    const matches = (duplicateSuspect.matches || []).slice(0, 5).map(m => {
+      const sim = typeof m.similarity !== 'undefined' ? ` (sim ${m.similarity})` : '';
+      return `<li>#${m.id}${sim}</li>`;
+    }).join('') || '<li>(no details)</li>';
+
+    showModal({
+      title: 'Potential Duplicate',
+      body: `The assistant found possible matches:\n\n<ul>${matches}</ul>\n\nAdd the document anyway?`,
+      actions: [
+        {
+          label: 'Add Anyway',
+          onClick: () => {
+            pushMsg('Adding despite duplicate warning…', 'system');
+            ingestFile(file).catch(err => {
+              console.error('Ingest after duplicate warning failed', err);
+            });
+          }
+        },
+        {
+          label: 'Cancel',
+          onClick: () => pushMsg('Okay, I skipped ingestion.', 'system')
+        }
+      ]
+    });
+
+    return { status: 'handled' };
+  }
+
+  return { status: 'proceed' };
+}
+
+async function ingestFile(file){
+  const fd = new FormData();
+  fd.append("file", file);
+
+  let resp;
+  try {
+    resp = await fetch("/ingest", { method: "POST", body: fd });
+  } catch (e) {
     pushMsg(`Network error while uploading: ${e?.message || e}`, "system");
     return;
   }
+
+  let data;
+  try {
+    data = await resp.json();
+  } catch (e) {
+    const fallback = await resp.text().catch(() => " (no details)");
+    pushMsg(`Server response was not JSON (${resp.status}): ${fallback}`, "system");
+    return;
+  }
+
   if (!resp.ok) {
-    const t = await resp.text().catch(()=>" (no details)");
-    pushMsg(`Server error (${resp.status}): ${t}`, "system");
+    const detail = typeof data === 'object' && data !== null ? JSON.stringify(data) : String(data ?? '');
+    pushMsg(`Server error (${resp.status}): ${detail || '(no details)'}`, "system");
     return;
   }
 
-  const data = await resp.json();
-  if (resp.status === 409) {
-    const detail = data?.detail || data;
-    showModal({title:'Exact duplicate', body:'This file matches a previously uploaded document.\n\nI can open the existing one for you.', actions:[{label:'OK'}]});
-    return;
+  const { document, extraction } = data || {};
+  const docId = document?.id;
+  const fields = extraction?.fields || {};
+  const rawJson = extraction?.raw_json || {};
+  const classifier = rawJson?.classifier?.payload || {};
+  const docType = (classifier?.type || document?.type || 'document').toString().toLowerCase();
+  const typeFriendlyMap = {
+    'vendor_bill_ap': 'vendor bill',
+    'invoice_ar': 'invoice',
+    'invoice': 'invoice',
+    'receipt': 'receipt',
+    'purchase_order': 'purchase order'
+  };
+  const typeLabel = (typeFriendlyMap[docType] || docType || 'document').replace(/_/g, ' ');
+  const typeArticle = /^[aeiou]/i.test(typeLabel) ? 'an' : 'a';
+
+  const vendor = typeof fields.vendor === 'string' && fields.vendor.trim() ? fields.vendor.trim() : null;
+  const total = typeof fields.total === 'number' ? fields.total : null;
+  const due = typeof fields.due_date === 'string' ? fields.due_date : null;
+  const summary = typeof fields.summary === 'string' ? fields.summary : null;
+
+  const suggestion = rawJson?.suggestion;
+  const totalDisplay = total !== null && !Number.isNaN(total) ? formatMoney(Number(total)) : null;
+  const introLine = suggestion
+    || (vendor && totalDisplay
+      ? `I think this is ${typeArticle} ${typeLabel} from ${vendor} totaling ${totalDisplay}.`
+      : `I ingested ${file.name} as ${typeLabel}.`);
+  const questionText = "Would you like me to add this to TDS Distilling's database?";
+  const lines = [introLine];
+  if (!introLine.toLowerCase().includes(questionText.toLowerCase())) {
+    lines.push(questionText);
   }
-  const { duplicate_suspect, proposed_record, document, extraction, duplicate } = data || {};
-  const suggestion =
-    extraction?.raw_json?.suggestion ||
-    "I parsed the file. Add it to the database?";
-
-  let msg = suggestion;
-  if (duplicate_suspect) {
-    msg += `\n\n⚠️ Possible duplicate: ${duplicate_suspect.reason||''}`;
+  if (vendor) {
+    lines.push(`Vendor: ${vendor}`);
   }
-
-  pushMsg(msg, "system");
-
-  if (duplicate_suspect) {
-    const list = (duplicate_suspect.matches||[]).slice(0,3).map(m=>`<li>#${m.id} ${m.similarity?`(sim ${m.similarity})`:''}</li>`).join('');
-    showModal({
-      title: 'Potential Duplicate',
-      body: `The assistant found possible matches:\n\n<ul>${list||'<li>(no details)</li>'}</ul>\n\nAdd anyway?`,
-      actions:[
-        {label:'Add Anyway', onClick:()=> pushMsg('Okay — add flow continues (server should expose confirm/force endpoint).','system')},
-        {label:'Cancel'}
-      ]
-    });
+  if (totalDisplay) {
+    lines.push(`Total: ${totalDisplay}`);
+  }
+  if (due) {
+    lines.push(`Due: ${due}`);
+  }
+  if (summary) {
+    lines.push(`Summary: ${summary}`);
+  }
+  if (docId) {
+    lines.push(`Document id: ${docId}`);
   } else {
+    lines.push('Ingestion succeeded, but no document id was returned.');
+  }
+
+  pushMsg(lines.join('\n'), "system");
+
+  if (docId) {
+    const confirmPayload = {
+      doc_id: docId,
+      type: docType,
+      fields,
+      schema: extraction?.schema,
+      model: extraction?.model,
+      confidence: extraction?.confidence,
+      extraction_id: extraction?.id,
+      raw_json: rawJson,
+    };
+
     addActionButtons([
-      { label: 'Add to DB', handler: () => confirmAdd(document?.id) },
-      { label: 'Cancel',    handler: () => pushMsg('Okay, I won’t add it.', 'system') }
+      {
+        label: 'Yes, add it',
+        handler: () => confirmAdd(docId, {
+          payload: confirmPayload,
+          vendor,
+          totalDisplay,
+        })
+      },
+      { label: 'No, not yet', handler: () => pushMsg("Okay, I’ll hold off on adding it.", "system") }
     ]);
   }
 }
@@ -1983,24 +2297,51 @@ function addActionButtons(actions){
   else chatLogEl.appendChild(row);
 }
 
-async function confirmAdd(docId){
-  if (!docId){
+async function confirmRecord(payload){
+  const body = JSON.stringify(payload);
+  const resp = await fetch("/records/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body
+  });
+  if (!resp.ok) {
+    const t = await resp.text().catch(()=>"(no details)");
+    throw new Error(`${resp.status} ${t}`.trim());
+  }
+  await resp.json().catch(()=>null);
+  return true;
+}
+
+async function confirmAdd(docId, options = {}){
+  const baseId = docId || options?.payload?.doc_id;
+  if (!baseId){
     pushMsg("I don’t have a document id to confirm. Try re-uploading.", "system");
     return;
   }
+
+  const payload = options?.payload && typeof options.payload === 'object'
+    ? { ...options.payload, doc_id: options.payload.doc_id || baseId }
+    : { doc_id: baseId };
+
   try {
-    const resp = await fetch("/records/confirm", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ doc_id: docId })
-    });
-    if (!resp.ok) {
-      const t = await resp.text().catch(()=>"(no details)");
-      pushMsg(`Couldn’t add: ${resp.status} ${t}`, "system");
-      return;
+    await confirmRecord(payload);
+
+    const details = [`Stored as ${payload.doc_id} in the database ✅`];
+    if (options.vendor) {
+      details.push(`Vendor: ${options.vendor}`);
     }
-    await resp.json().catch(()=>null);
-    pushMsg("Done! I added it to the database ✅", "system");
+    if (options.totalDisplay) {
+      details.push(`Total: ${options.totalDisplay}`);
+    }
+    pushMsg(details.join('\n'), "system");
+
+    if (typeof loadAP === 'function') {
+      try {
+        await loadAP();
+      } catch (e) {
+        console.warn('Failed to refresh AP widget after confirm', e);
+      }
+    }
   } catch (e) {
     pushMsg(`Confirm failed: ${e?.message || e}`, "system");
   }

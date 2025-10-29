@@ -35,16 +35,8 @@ from openai import (
     AuthenticationError,
 )
 
-from .models import (
-    Document,
-    DocumentType,
-    Extraction,
-    InvoiceFields,
-    LineItem,
-    ReceiptFields,
-    Record,
-)
-from .storage import upsert_extraction, upsert_record
+from .models import Document, DocumentType, Extraction, InvoiceFields, LineItem, ReceiptFields
+from .storage import upsert_extraction
 
 logger = logging.getLogger(__name__)
 
@@ -326,11 +318,24 @@ def run_extraction(document: Document, text: str) -> Extraction:
     Falls back to a text summary if rendering fails.
     """
     images: List[Image.Image] = []
-    try:
-        if document.mime == "application/pdf" and os.path.exists(document.storage_path):
-            images = _pdf_to_images(document.storage_path, max_pages=MAX_PAGES, dpi=DPI)
-    except Exception as e:
-        logger.exception("PDF render failed: %s", e)
+    if os.path.exists(document.storage_path):
+        if document.mime == "application/pdf":
+            try:
+                images = _pdf_to_images(document.storage_path, max_pages=MAX_PAGES, dpi=DPI)
+            except Exception as e:
+                logger.exception("PDF render failed: %s", e)
+        else:
+            try:
+                if document.mime and document.mime.startswith("image/"):
+                    with Image.open(document.storage_path) as img:
+                        images = [img.convert("RGB")]
+                else:
+                    ext = os.path.splitext(document.storage_path)[1].lower()
+                    if ext in {".jpg", ".jpeg", ".png", ".heic"}:
+                        with Image.open(document.storage_path) as img:
+                            images = [img.convert("RGB")]
+            except Exception as e:
+                logger.exception("Image render failed: %s", e)
 
     raw_json: Dict[str, Any] = {}
     fields: Dict[str, Any]
@@ -420,13 +425,4 @@ def run_extraction(document: Document, text: str) -> Extraction:
     )
     upsert_extraction(extraction)
 
-    record = Record(
-        id=f"rec_{uuid.uuid4().hex[:12]}",
-        document_id=document.id,
-        extraction_id=extraction.id,
-        type=doc_type,
-        fields=fields,
-        created_at=datetime.utcnow(),
-    )
-    upsert_record(record)
     return extraction
