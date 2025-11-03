@@ -1501,6 +1501,14 @@ if (document.readyState === 'loading') {
     }
   }
 
+  function storePreview(docId, dataUrl){
+    if (!docId || typeof dataUrl !== 'string' || !dataUrl) return false;
+    previews[docId] = dataUrl;
+    savePreviews();
+    renderReceipts();
+    return true;
+  }
+
   async function deleteReceipt(record){
     const ok = confirm('Remove this receipt from the database?');
     if (!ok) return;
@@ -1576,8 +1584,7 @@ if (document.readyState === 'loading') {
     await confirmRecord(payload);
 
     if (previewDataUrl) {
-      previews[docId] = previewDataUrl;
-      savePreviews();
+      storePreview(docId, previewDataUrl);
     }
 
     return { docId, fields, docType: inferredType };
@@ -1651,6 +1658,12 @@ if (document.readyState === 'loading') {
 
   previews = loadPreviews();
   refreshReceipts(true);
+  const receiptsApi = (window.__sfcReceipts && typeof window.__sfcReceipts === 'object')
+    ? window.__sfcReceipts
+    : {};
+  receiptsApi.storePreview = storePreview;
+  receiptsApi.refresh = (options = {}) => refreshReceipts(!!options.showLoading);
+  window.__sfcReceipts = receiptsApi;
 })();
 </script>
 
@@ -1892,6 +1905,19 @@ function mergeObjects(target, source){
   return target;
 }
 
+function readFileAsDataURL(file){
+  return new Promise((resolve, reject) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = evt => resolve(evt.target?.result || '');
+      reader.onerror = err => reject(err);
+      reader.readAsDataURL(file);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 /* ===== Attach living-glow border to every .glow-card ===== */
 function initGlow(card){
   const svg = card.querySelector('svg.glow');
@@ -1992,15 +2018,28 @@ async function handleFiles(fileList){
 
   pushMsg(`Uploading “${file.name}”…`, "system");
 
-  const dupStatus = await checkForDuplicates(file);
+  const ingestOptions = { previewDataUrl: null };
+  const type = (file.type || '').toLowerCase();
+  const name = file.name || '';
+  const isImageLike = (type.startsWith('image/')) || /\.(png|jpe?g|heic|webp)$/i.test(name);
+  if (isImageLike) {
+    try {
+      ingestOptions.previewDataUrl = await readFileAsDataURL(file);
+    } catch (err) {
+      console.warn('Failed to read preview before ingestion', err);
+      ingestOptions.previewDataUrl = null;
+    }
+  }
+
+  const dupStatus = await checkForDuplicates(file, ingestOptions);
   if (!dupStatus || dupStatus.status !== 'proceed') {
     return;
   }
 
-  await ingestFile(file);
+  await ingestFile(file, ingestOptions);
 }
 
-async function checkForDuplicates(file){
+async function checkForDuplicates(file, options = {}){
   const fd = new FormData();
   fd.append("file", file);
 
@@ -2070,7 +2109,7 @@ async function checkForDuplicates(file){
           label: 'Add Anyway',
           onClick: () => {
             pushMsg('Adding despite duplicate warning…', 'system');
-            ingestFile(file).catch(err => {
+            ingestFile(file, options).catch(err => {
               console.error('Ingest after duplicate warning failed', err);
             });
           }
@@ -2088,7 +2127,7 @@ async function checkForDuplicates(file){
   return { status: 'proceed' };
 }
 
-async function ingestFile(file){
+async function ingestFile(file, options = {}){
   const fd = new FormData();
   fd.append("file", file);
 
@@ -2124,6 +2163,9 @@ async function ingestFile(file){
   const docType = (classifier?.type || document?.type || 'document').toString().toLowerCase();
   const typeLabel = typeLabelFor(docType);
   const typeArticle = /^[aeiou]/i.test(typeLabel) ? 'an' : 'a';
+  const previewDataUrl = typeof options.previewDataUrl === 'string' && options.previewDataUrl
+    ? options.previewDataUrl
+    : null;
 
   const vendor = typeof fields.vendor === 'string' && fields.vendor.trim() ? fields.vendor.trim() : null;
   const merchant = typeof fields.merchant === 'string' && fields.merchant.trim() ? fields.merchant.trim() : null;
@@ -2197,6 +2239,7 @@ async function ingestFile(file){
     summary,
     category,
     fileName: file?.name,
+    previewDataUrl,
   });
 
   appendAssistantMessage(lines.join('\n'));
@@ -2428,6 +2471,7 @@ function startAssistantSession(context){
     totalDisplay: context?.totalDisplay || null,
     summary: context?.summary || null,
     category: context?.category || null,
+    previewDataUrl: context?.previewDataUrl || null,
     history: [],
     confirmed: false,
   };
@@ -2443,9 +2487,15 @@ function applyAssistantUpdates(updates){
     if (ctx.confirmPayload) {
       ctx.confirmPayload.type = updates.doc_type;
     }
+    if (String(updates.doc_type).toLowerCase() !== 'receipt') {
+      ctx.previewDataUrl = null;
+    }
   }
 
   if (updates.doc_id && typeof updates.doc_id === 'string') {
+    if (ctx.docId && ctx.docId !== updates.doc_id) {
+      ctx.previewDataUrl = null;
+    }
     ctx.docId = updates.doc_id;
     if (ctx.confirmPayload) {
       ctx.confirmPayload.doc_id = updates.doc_id;
@@ -2594,6 +2644,24 @@ async function confirmAdd(docId, options = {}){
 
   try {
     await confirmRecord(basePayload);
+
+    if (sessionMatches && assistantSession.docType === 'receipt') {
+      const previewDataUrl = assistantSession.previewDataUrl;
+      if (previewDataUrl && window.__sfcReceipts && typeof window.__sfcReceipts.storePreview === 'function') {
+        try {
+          window.__sfcReceipts.storePreview(baseId, previewDataUrl);
+        } catch (err) {
+          console.warn('Failed to store receipt preview', err);
+        }
+      }
+      if (window.__sfcReceipts && typeof window.__sfcReceipts.refresh === 'function') {
+        try {
+          await window.__sfcReceipts.refresh({ showLoading: false });
+        } catch (err) {
+          console.warn('Failed to refresh receipts after confirm', err);
+        }
+      }
+    }
 
     if (sessionMatches) {
       assistantSession.confirmed = true;
