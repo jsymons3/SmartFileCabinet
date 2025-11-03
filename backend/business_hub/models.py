@@ -1,7 +1,7 @@
 """Pydantic data models for Business Hub backend."""
 from __future__ import annotations
 
-from datetime import datetime
+import datetime as dt
 from enum import Enum
 from typing import List, Optional
 
@@ -28,7 +28,7 @@ class Document(BaseModel):
     type: DocumentType
     mime: str
     source: DocumentSource
-    created_at: datetime
+    created_at: dt.datetime
     pages: int = 1
     storage_path: str
     ocr_text_indexed: bool = False
@@ -43,7 +43,7 @@ class Extraction(BaseModel):
     fields: dict
     confidence: float
     raw_json: dict
-    created_at: datetime
+    created_at: dt.datetime
 
 
 class LineItem(BaseModel):
@@ -56,8 +56,8 @@ class LineItem(BaseModel):
 class InvoiceFields(BaseModel):
     vendor: str
     invoice_number: str
-    invoice_date: Optional[datetime] = None
-    due_date: Optional[datetime] = None
+    invoice_date: Optional[dt.datetime] = None
+    due_date: Optional[dt.datetime] = None
     currency: Optional[str] = None
     total: float
     tax: Optional[float] = None
@@ -67,7 +67,7 @@ class InvoiceFields(BaseModel):
 
 class ReceiptFields(BaseModel):
     merchant: str
-    datetime: Optional[datetime] = None
+    datetime: dt.datetime | None = None
     subtotal: Optional[float] = None
     tip: Optional[float] = None
     total: float
@@ -84,7 +84,7 @@ class Task(BaseModel):
     id: str
     thread_id: str
     title: str
-    due_at: Optional[datetime] = None
+    due_at: Optional[dt.datetime] = None
     status: TaskStatus = TaskStatus.OPEN
 
 
@@ -97,7 +97,7 @@ class ThreadMessageType(str, Enum):
 class ThreadMessage(BaseModel):
     id: str
     thread_id: str
-    created_at: datetime
+    created_at: dt.datetime
     type: ThreadMessageType
     author: str
     content: dict
@@ -106,7 +106,7 @@ class ThreadMessage(BaseModel):
 class Thread(BaseModel):
     id: str
     document_id: str
-    created_at: datetime
+    created_at: dt.datetime
     title: str
     messages: List[ThreadMessage] = Field(default_factory=list)
 
@@ -117,7 +117,7 @@ class Record(BaseModel):
     extraction_id: Optional[str] = None
     type: DocumentType
     fields: dict
-    created_at: datetime
+    created_at: dt.datetime
 
 
 class StorageMode(str, Enum):

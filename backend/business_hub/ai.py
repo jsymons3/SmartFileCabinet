@@ -35,16 +35,8 @@ from openai import (
     AuthenticationError,
 )
 
-from .models import (
-    Document,
-    DocumentType,
-    Extraction,
-    InvoiceFields,
-    LineItem,
-    ReceiptFields,
-    Record,
-)
-from .storage import upsert_extraction, upsert_record
+from .models import Document, DocumentType, Extraction, InvoiceFields, LineItem, ReceiptFields
+from .storage import upsert_extraction
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +47,7 @@ MAX_WIDTH = int(os.getenv("VISION_MAX_WIDTH", "1800"))
 CLASSIFIER_MODEL = os.getenv("OPENAI_CLASSIFIER_MODEL", "o3")
 EXTRACTION_MODEL = os.getenv("OPENAI_EXTRACTION_MODEL", "o3")
 FALLBACK_MODEL = "gpt-4o-mini"
+ASSISTANT_MODEL = os.getenv("OPENAI_ASSISTANT_MODEL", FALLBACK_MODEL)
 
 # --- company + classifier prompt -------------------------------------------------
 COMPANY_NAME = os.getenv("BUSINESS_NAME", "TDS Distilling")
@@ -317,7 +310,38 @@ def _normalize_receipt_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     data = dict(fields)
     data.setdefault("merchant", "Unknown Merchant")
     data.setdefault("total", 0.0)
+
+    # Parse common datetime strings into datetime objects so the pydantic model accepts them.
+    raw_dt = data.get("datetime")
+    if isinstance(raw_dt, str):
+        parsed = None
+        cleaned = raw_dt.strip()
+        if cleaned:
+            # Try a handful of common receipt timestamp formats before giving up.
+            for fmt in (
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M",
+                "%m/%d/%Y %H:%M",
+                "%m/%d/%y %H:%M",
+                "%m/%d/%Y",
+                "%m/%d/%y",
+            ):
+                try:
+                    parsed = datetime.strptime(cleaned.replace("T", " "), fmt)
+                    break
+                except ValueError:
+                    continue
+            if parsed is None:
+                try:
+                    parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+                except ValueError:
+                    parsed = None
+        data["datetime"] = parsed
+
     normalized = ReceiptFields(**data).dict(exclude_none=True)
+    dt_val = normalized.get("datetime")
+    if isinstance(dt_val, datetime):
+        normalized["datetime"] = dt_val.isoformat()
     return normalized
 
 
@@ -326,11 +350,24 @@ def run_extraction(document: Document, text: str) -> Extraction:
     Falls back to a text summary if rendering fails.
     """
     images: List[Image.Image] = []
-    try:
-        if document.mime == "application/pdf" and os.path.exists(document.storage_path):
-            images = _pdf_to_images(document.storage_path, max_pages=MAX_PAGES, dpi=DPI)
-    except Exception as e:
-        logger.exception("PDF render failed: %s", e)
+    if os.path.exists(document.storage_path):
+        if document.mime == "application/pdf":
+            try:
+                images = _pdf_to_images(document.storage_path, max_pages=MAX_PAGES, dpi=DPI)
+            except Exception as e:
+                logger.exception("PDF render failed: %s", e)
+        else:
+            try:
+                if document.mime and document.mime.startswith("image/"):
+                    with Image.open(document.storage_path) as img:
+                        images = [img.convert("RGB")]
+                else:
+                    ext = os.path.splitext(document.storage_path)[1].lower()
+                    if ext in {".jpg", ".jpeg", ".png", ".heic"}:
+                        with Image.open(document.storage_path) as img:
+                            images = [img.convert("RGB")]
+            except Exception as e:
+                logger.exception("Image render failed: %s", e)
 
     raw_json: Dict[str, Any] = {}
     fields: Dict[str, Any]
@@ -420,13 +457,124 @@ def run_extraction(document: Document, text: str) -> Extraction:
     )
     upsert_extraction(extraction)
 
-    record = Record(
-        id=f"rec_{uuid.uuid4().hex[:12]}",
-        document_id=document.id,
-        extraction_id=extraction.id,
-        type=doc_type,
-        fields=fields,
-        created_at=datetime.utcnow(),
-    )
-    upsert_record(record)
     return extraction
+
+
+ASSISTANT_PROMPT = (
+    "You are an accounts payable assistant who reviews structured vision extractions "
+    "with a human. Respond with JSON containing: "
+    "`message` (string reply) and `updates` (object of field corrections). "
+    "Inside `updates`, include a `fields` object for any corrections to the extracted "
+    "data, keeping numeric values as numbers. Prefer `vendor` for invoices/bills and "
+    "`merchant` plus `category` for receipts. When the user reclassifies the document, "
+    "set `doc_type` inside `updates`. Only mention keys that need changes."
+)
+
+
+def _json_default(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    try:
+        return value.value  # Enum support
+    except AttributeError:
+        return str(value)
+
+
+def chat_with_ingestion(
+    document: Dict[str, Any] | None,
+    extraction: Dict[str, Any] | None,
+    history: List[Dict[str, str]] | None,
+    message: str,
+) -> Dict[str, Any]:
+    """Small chat helper that lets the user correct extracted fields via text."""
+
+    if not message or not message.strip():
+        return {
+            "message": "Let me know what should change and I’ll adjust the fields.",
+            "updates": {},
+        }
+
+    if not document and not extraction:
+        return {
+            "message": "Upload a document or receipt first so I know what to adjust.",
+            "updates": {},
+        }
+
+    cleaned_message = message.strip()
+    history = history or []
+    doc_context = document or {}
+    extraction = extraction or {}
+    fields = extraction.get("fields") if isinstance(extraction, dict) else {}
+    if not isinstance(fields, dict):
+        fields = {}
+    extraction_meta = (
+        {k: v for k, v in extraction.items() if k not in {"fields", "raw_json"}}
+        if isinstance(extraction, dict)
+        else {}
+    )
+
+    context = {
+        "document": doc_context,
+        "extraction": extraction_meta,
+        "fields": fields,
+    }
+    context_json = json.dumps(context, default=_json_default, ensure_ascii=False, indent=2)
+
+    messages: List[Dict[str, Any]] = [
+        {
+            "role": "system",
+            "content": ASSISTANT_PROMPT + " Always respond with a valid JSON object.",
+        },
+        {
+            "role": "user",
+            "content": "Current ingestion context as JSON:\n" + context_json,
+        },
+    ]
+
+    for turn in history[-12:]:
+        if not isinstance(turn, dict):
+            continue
+        role = turn.get("role")
+        content = turn.get("content")
+        if role not in {"user", "assistant"}:
+            continue
+        if not isinstance(content, str) or not content.strip():
+            continue
+        messages.append({"role": role, "content": content.strip()})
+
+    messages.append({"role": "user", "content": cleaned_message})
+
+    client = _get_client()
+
+    kwargs: Dict[str, Any] = {
+        "model": ASSISTANT_MODEL,
+        "response_format": {"type": "json_object"},
+        "messages": messages,
+    }
+    if not ASSISTANT_MODEL.startswith("o3"):
+        kwargs["temperature"] = 0.2
+
+    try:
+        chat = client.chat.completions.create(**kwargs)
+        raw = chat.choices[0].message.content
+    except (APIError, APIConnectionError, RateLimitError, BadRequestError, AuthenticationError) as exc:
+        msg = getattr(exc, "message", str(exc))
+        body = getattr(exc, "body", None)
+        raise RuntimeError(
+            f"OpenAI chat failed for model '{ASSISTANT_MODEL}'. Message: {msg}. Body: {body}"
+        ) from exc
+
+    try:
+        payload = json.loads(raw or "{}")
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Assistant returned a non-JSON reply.") from exc
+
+    reply = payload.get("message")
+    if not isinstance(reply, str) or not reply.strip():
+        reply = "All set. Let me know if anything else needs updating."
+
+    updates = payload.get("updates")
+    if not isinstance(updates, dict):
+        updates = {}
+
+    return {"message": reply.strip(), "updates": updates}
