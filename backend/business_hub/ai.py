@@ -309,7 +309,38 @@ def _normalize_receipt_fields(fields: Dict[str, Any]) -> Dict[str, Any]:
     data = dict(fields)
     data.setdefault("merchant", "Unknown Merchant")
     data.setdefault("total", 0.0)
+
+    # Parse common datetime strings into datetime objects so the pydantic model accepts them.
+    raw_dt = data.get("datetime")
+    if isinstance(raw_dt, str):
+        parsed = None
+        cleaned = raw_dt.strip()
+        if cleaned:
+            # Try a handful of common receipt timestamp formats before giving up.
+            for fmt in (
+                "%Y-%m-%d %H:%M:%S",
+                "%Y-%m-%d %H:%M",
+                "%m/%d/%Y %H:%M",
+                "%m/%d/%y %H:%M",
+                "%m/%d/%Y",
+                "%m/%d/%y",
+            ):
+                try:
+                    parsed = datetime.strptime(cleaned.replace("T", " "), fmt)
+                    break
+                except ValueError:
+                    continue
+            if parsed is None:
+                try:
+                    parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+                except ValueError:
+                    parsed = None
+        data["datetime"] = parsed
+
     normalized = ReceiptFields(**data).dict(exclude_none=True)
+    dt_val = normalized.get("datetime")
+    if isinstance(dt_val, datetime):
+        normalized["datetime"] = dt_val.isoformat()
     return normalized
 
 
