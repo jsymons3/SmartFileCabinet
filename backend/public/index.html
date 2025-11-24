@@ -2253,6 +2253,14 @@ async function ingestFile(file, options = {}){
       { label: 'No, not yet', handler: () => appendAssistantMessage("Okay, I’ll hold off on adding it.") }
     ]);
   }
+
+  if (typeof loadAP === 'function') {
+    try {
+      await loadAP();
+    } catch (e) {
+      console.warn('Failed to refresh AP widget after ingest', e);
+    }
+  }
 }
 
 /* ===== Assistant Panel: Draggable & Collapsible ===== */
