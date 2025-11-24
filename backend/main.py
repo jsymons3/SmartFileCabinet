@@ -13,7 +13,7 @@ from fastapi import Body
 from typing import List
 
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import sqlite3, json
 
 
@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from business_hub.ai import run_extraction
+from business_hub.ai import run_extraction, chat_with_ingestion
 from business_hub.ingest import ingest_file
 from business_hub.models import PdfFillProfile
 from business_hub.pdf_fill import PdfFillError, fill_pdf
@@ -81,6 +81,20 @@ else:
 # ---------------------------
 # 3) Your existing endpoints
 # ---------------------------
+
+
+class ChatTurn(BaseModel):
+    role: str
+    content: str
+
+
+class AssistantChatRequest(BaseModel):
+    document: Optional[dict] = None
+    extraction: Optional[dict] = None
+    history: List[ChatTurn] = Field(default_factory=list)
+    message: str
+
+
 # In-memory demo store (replace with real DB later)
 def _db():
     # row_factory returns dict-like rows
@@ -194,6 +208,25 @@ def mark_ap_bills_paid(payload: dict = Body(...)):
 
     con.close()
     return {"ok": True, "updated": updated, "open": open_items}
+
+
+@app.post("/assistant/chat")
+async def assistant_chat(payload: AssistantChatRequest):
+    history = [turn.model_dump() for turn in payload.history]
+    try:
+        result = chat_with_ingestion(
+            payload.document,
+            payload.extraction,
+            history,
+            payload.message,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+    return result
+
+
 @app.post("/ingest")
 async def ingest(file: UploadFile = File(...)):
     tmp_path = BASE_DIR / "tmp"

@@ -703,6 +703,7 @@ body{
       word-break: break-word;
       max-width: 100%; }
 .msg.user{ align-self:flex-end; background: rgba(115,187,201,.18); }
+.msg.assistant{ background: rgba(255,255,255,.08); }
 .msg.system{ opacity:.95; }
 
 .assistant-input{
@@ -1500,6 +1501,14 @@ if (document.readyState === 'loading') {
     }
   }
 
+  function storePreview(docId, dataUrl){
+    if (!docId || typeof dataUrl !== 'string' || !dataUrl) return false;
+    previews[docId] = dataUrl;
+    savePreviews();
+    renderReceipts();
+    return true;
+  }
+
   async function deleteReceipt(record){
     const ok = confirm('Remove this receipt from the database?');
     if (!ok) return;
@@ -1575,8 +1584,7 @@ if (document.readyState === 'loading') {
     await confirmRecord(payload);
 
     if (previewDataUrl) {
-      previews[docId] = previewDataUrl;
-      savePreviews();
+      storePreview(docId, previewDataUrl);
     }
 
     return { docId, fields, docType: inferredType };
@@ -1650,6 +1658,12 @@ if (document.readyState === 'loading') {
 
   previews = loadPreviews();
   refreshReceipts(true);
+  const receiptsApi = (window.__sfcReceipts && typeof window.__sfcReceipts === 'object')
+    ? window.__sfcReceipts
+    : {};
+  receiptsApi.storePreview = storePreview;
+  receiptsApi.refresh = (options = {}) => refreshReceipts(!!options.showLoading);
+  window.__sfcReceipts = receiptsApi;
 })();
 </script>
 
@@ -1834,7 +1848,7 @@ if (document.readyState === 'loading') {
     <div class="assistant-title">AI Assistant</div>
   </div>
   <div class="assistant-body" id="chatLog">
-    <div class="msg system">Welcome! Drop an invoice, receipt, e-mail, PDF form, etc., or ask me anything.</div>
+    <div class="msg assistant">Welcome! Drop an invoice, receipt, e-mail, PDF form, etc., or ask me anything.</div>
   </div>
   <form class="assistant-input" id="chatForm">
     <textarea id="chatText" placeholder="Ask the Squid…" autocomplete="off" rows="1"></textarea>
@@ -1843,6 +1857,67 @@ if (document.readyState === 'loading') {
 </aside>
 
 <script>
+const TYPE_LABELS = {
+  'vendor_bill_ap': 'vendor bill',
+  'invoice_ar': 'invoice',
+  'invoice': 'invoice',
+  'receipt': 'receipt',
+  'purchase_order': 'purchase order',
+};
+
+let assistantSession = null;
+let chatBusy = false;
+
+function typeLabelFor(kind){
+  if (!kind) return 'document';
+  const normalized = String(kind).toLowerCase();
+  return TYPE_LABELS[normalized] || normalized.replace(/_/g, ' ');
+}
+
+function cloneData(value){
+  if (value === null || typeof value !== 'object') return value;
+  if (typeof structuredClone === 'function'){
+    try { return structuredClone(value); } catch (e) { /* fall back */ }
+  }
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch (e) {
+    if (Array.isArray(value)) return value.slice();
+    return { ...value };
+  }
+}
+
+function mergeObjects(target, source){
+  if (!source || typeof source !== 'object') return target;
+  if (!target || typeof target !== 'object' || Array.isArray(target)) {
+    return cloneData(source);
+  }
+  Object.entries(source).forEach(([key, value]) => {
+    if (value && typeof value === 'object' && !Array.isArray(value)){
+      target[key] = mergeObjects(
+        target[key] && typeof target[key] === 'object' && !Array.isArray(target[key]) ? target[key] : {},
+        value
+      );
+    } else {
+      target[key] = value;
+    }
+  });
+  return target;
+}
+
+function readFileAsDataURL(file){
+  return new Promise((resolve, reject) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = evt => resolve(evt.target?.result || '');
+      reader.onerror = err => reject(err);
+      reader.readAsDataURL(file);
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
 /* ===== Attach living-glow border to every .glow-card ===== */
 function initGlow(card){
   const svg = card.querySelector('svg.glow');
@@ -1943,15 +2018,28 @@ async function handleFiles(fileList){
 
   pushMsg(`Uploading “${file.name}”…`, "system");
 
-  const dupStatus = await checkForDuplicates(file);
+  const ingestOptions = { previewDataUrl: null };
+  const type = (file.type || '').toLowerCase();
+  const name = file.name || '';
+  const isImageLike = (type.startsWith('image/')) || /\.(png|jpe?g|heic|webp)$/i.test(name);
+  if (isImageLike) {
+    try {
+      ingestOptions.previewDataUrl = await readFileAsDataURL(file);
+    } catch (err) {
+      console.warn('Failed to read preview before ingestion', err);
+      ingestOptions.previewDataUrl = null;
+    }
+  }
+
+  const dupStatus = await checkForDuplicates(file, ingestOptions);
   if (!dupStatus || dupStatus.status !== 'proceed') {
     return;
   }
 
-  await ingestFile(file);
+  await ingestFile(file, ingestOptions);
 }
 
-async function checkForDuplicates(file){
+async function checkForDuplicates(file, options = {}){
   const fd = new FormData();
   fd.append("file", file);
 
@@ -2021,7 +2109,7 @@ async function checkForDuplicates(file){
           label: 'Add Anyway',
           onClick: () => {
             pushMsg('Adding despite duplicate warning…', 'system');
-            ingestFile(file).catch(err => {
+            ingestFile(file, options).catch(err => {
               console.error('Ingest after duplicate warning failed', err);
             });
           }
@@ -2039,7 +2127,7 @@ async function checkForDuplicates(file){
   return { status: 'proceed' };
 }
 
-async function ingestFile(file){
+async function ingestFile(file, options = {}){
   const fd = new FormData();
   fd.append("file", file);
 
@@ -2067,45 +2155,49 @@ async function ingestFile(file){
   }
 
   const { document, extraction } = data || {};
-  const docId = document?.id;
-  const fields = extraction?.fields || {};
-  const rawJson = extraction?.raw_json || {};
+  const docId = document?.id || null;
+  const baseFields = extraction && typeof extraction.fields === 'object' ? extraction.fields : {};
+  const fields = cloneData(baseFields) || {};
+  const rawJson = cloneData(extraction?.raw_json || {});
   const classifier = rawJson?.classifier?.payload || {};
   const docType = (classifier?.type || document?.type || 'document').toString().toLowerCase();
-  const typeFriendlyMap = {
-    'vendor_bill_ap': 'vendor bill',
-    'invoice_ar': 'invoice',
-    'invoice': 'invoice',
-    'receipt': 'receipt',
-    'purchase_order': 'purchase order'
-  };
-  const typeLabel = (typeFriendlyMap[docType] || docType || 'document').replace(/_/g, ' ');
+  const typeLabel = typeLabelFor(docType);
   const typeArticle = /^[aeiou]/i.test(typeLabel) ? 'an' : 'a';
+  const previewDataUrl = typeof options.previewDataUrl === 'string' && options.previewDataUrl
+    ? options.previewDataUrl
+    : null;
 
   const vendor = typeof fields.vendor === 'string' && fields.vendor.trim() ? fields.vendor.trim() : null;
+  const merchant = typeof fields.merchant === 'string' && fields.merchant.trim() ? fields.merchant.trim() : null;
+  const entityName = vendor || merchant || null;
+  const entityLabel = docType === 'receipt' ? 'Merchant' : 'Vendor';
   const total = typeof fields.total === 'number' ? fields.total : null;
-  const due = typeof fields.due_date === 'string' ? fields.due_date : null;
-  const summary = typeof fields.summary === 'string' ? fields.summary : null;
+  const due = typeof fields.due_date === 'string' && fields.due_date.trim() ? fields.due_date.trim() : null;
+  const category = typeof fields.category === 'string' && fields.category.trim() ? fields.category.trim() : null;
+  const summary = typeof fields.summary === 'string' && fields.summary.trim() ? fields.summary.trim() : null;
 
   const suggestion = rawJson?.suggestion;
   const totalDisplay = total !== null && !Number.isNaN(total) ? formatMoney(Number(total)) : null;
   const introLine = suggestion
-    || (vendor && totalDisplay
-      ? `I think this is ${typeArticle} ${typeLabel} from ${vendor} totaling ${totalDisplay}.`
+    || (entityName && totalDisplay
+      ? `I think this is ${typeArticle} ${typeLabel} from ${entityName} totaling ${totalDisplay}.`
       : `I ingested ${file.name} as ${typeLabel}.`);
   const questionText = "Would you like me to add this to TDS Distilling's database?";
   const lines = [introLine];
   if (!introLine.toLowerCase().includes(questionText.toLowerCase())) {
     lines.push(questionText);
   }
-  if (vendor) {
-    lines.push(`Vendor: ${vendor}`);
+  if (entityName) {
+    lines.push(`${entityLabel}: ${entityName}`);
   }
   if (totalDisplay) {
     lines.push(`Total: ${totalDisplay}`);
   }
   if (due) {
     lines.push(`Due: ${due}`);
+  }
+  if (category) {
+    lines.push(`Category: ${category}`);
   }
   if (summary) {
     lines.push(`Summary: ${summary}`);
@@ -2116,30 +2208,49 @@ async function ingestFile(file){
     lines.push('Ingestion succeeded, but no document id was returned.');
   }
 
-  pushMsg(lines.join('\n'), "system");
+  const confirmPayload = {
+    doc_id: docId,
+    type: docType,
+    fields: cloneData(fields),
+    schema: extraction?.schema,
+    model: extraction?.model,
+    confidence: extraction?.confidence,
+    extraction_id: extraction?.id,
+    raw_json: rawJson,
+  };
+
+  const sessionDocument = cloneData(document) || {};
+  if (sessionDocument && typeof sessionDocument === 'object' && file?.name) {
+    sessionDocument.original_filename = file.name;
+  }
+  const sessionExtraction = cloneData(extraction) || {};
+  if (sessionExtraction && typeof sessionExtraction === 'object') {
+    sessionExtraction.fields = cloneData(fields);
+  }
+
+  startAssistantSession({
+    docId,
+    docType,
+    document: sessionDocument,
+    extraction: sessionExtraction,
+    confirmPayload,
+    vendor: entityName,
+    totalDisplay,
+    summary,
+    category,
+    fileName: file?.name,
+    previewDataUrl,
+  });
+
+  appendAssistantMessage(lines.join('\n'));
 
   if (docId) {
-    const confirmPayload = {
-      doc_id: docId,
-      type: docType,
-      fields,
-      schema: extraction?.schema,
-      model: extraction?.model,
-      confidence: extraction?.confidence,
-      extraction_id: extraction?.id,
-      raw_json: rawJson,
-    };
-
     addActionButtons([
       {
         label: 'Yes, add it',
-        handler: () => confirmAdd(docId, {
-          payload: confirmPayload,
-          vendor,
-          totalDisplay,
-        })
+        handler: () => confirmAdd(docId)
       },
-      { label: 'No, not yet', handler: () => pushMsg("Okay, I’ll hold off on adding it.", "system") }
+      { label: 'No, not yet', handler: () => appendAssistantMessage("Okay, I’ll hold off on adding it.") }
     ]);
   }
 
@@ -2228,6 +2339,7 @@ function setTranslate(xPos, yPos, el) {
 const chatForm = document.getElementById('chatForm');
 const chatText = document.getElementById('chatText');
 const chatLog  = document.getElementById('chatLog');
+const chatSend = chatForm.querySelector('button');
 
 // Handle Enter key: Send on Enter, new line on Shift+Enter
 chatText.addEventListener('keydown', function(e) {
@@ -2237,15 +2349,72 @@ chatText.addEventListener('keydown', function(e) {
   }
 });
 
-chatForm.addEventListener('submit', e=>{
+chatForm.addEventListener('submit', async e => {
   e.preventDefault();
   const text = chatText.value.trim();
-  if(!text) return;
-  pushMsg(text, 'user');
+  if (!text) return;
+
+  appendUserMessage(text);
   chatText.value = '';
 
-  // Demo response; replace with your FastAPI/OpenAI call
-  setTimeout(()=> pushMsg("Got it — I’ll categorize that and update your invoices.", 'system'), 400);
+  if (!assistantSession) {
+    appendAssistantMessage("Upload a document or receipt first so I know what to adjust.");
+    return;
+  }
+
+  if (chatBusy) {
+    appendAssistantMessage("One moment — I’m still processing your last instruction.");
+    return;
+  }
+
+  const historyForRequest = assistantSession.history.length > 0
+    ? assistantSession.history.slice(0, -1)
+    : [];
+
+  setChatBusyState(true);
+
+  try {
+    const resp = await fetch('/assistant/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        document: assistantSession.document,
+        extraction: assistantSession.extraction,
+        history: historyForRequest,
+        message: text,
+      }),
+    });
+
+    if (!resp.ok) {
+      const fallback = await resp.text().catch(() => '(no details)');
+      appendAssistantMessage(`Assistant error (${resp.status}): ${fallback || '(no details)'}`);
+      return;
+    }
+
+    const payloadText = await resp.text();
+    let data = {};
+    if (payloadText) {
+      try {
+        data = JSON.parse(payloadText);
+      } catch (err) {
+        appendAssistantMessage(`Assistant reply was not JSON: ${payloadText}`);
+        return;
+      }
+    }
+
+    const reply = typeof data.message === 'string' ? data.message : '';
+    if (reply) {
+      appendAssistantMessage(reply);
+    }
+
+    if (data.updates && typeof data.updates === 'object') {
+      applyAssistantUpdates(data.updates);
+    }
+  } catch (err) {
+    appendAssistantMessage(`Assistant request failed: ${err?.message || err}`);
+  } finally {
+    setChatBusyState(false);
+  }
 });
 
 function pushMsg(text, role='system'){
@@ -2254,6 +2423,137 @@ function pushMsg(text, role='system'){
   div.textContent = text;
   chatLog.appendChild(div);
   chatLog.scrollTop = chatLog.scrollHeight;
+  return div;
+}
+
+function logAssistantTurn(role, content){
+  if (!assistantSession) return;
+  if (role !== 'assistant' && role !== 'user') return;
+  assistantSession.history.push({ role, content });
+}
+
+function appendAssistantMessage(text){
+  pushMsg(text, 'assistant');
+  logAssistantTurn('assistant', text);
+}
+
+function appendUserMessage(text){
+  pushMsg(text, 'user');
+  logAssistantTurn('user', text);
+}
+
+function startAssistantSession(context){
+  const confirmPayload = cloneData(context?.confirmPayload || {});
+  if (!confirmPayload || typeof confirmPayload !== 'object') {
+    assistantSession = null;
+    return;
+  }
+  if (!confirmPayload.fields || typeof confirmPayload.fields !== 'object') {
+    confirmPayload.fields = {};
+  }
+  if (!confirmPayload.raw_json || typeof confirmPayload.raw_json !== 'object') {
+    confirmPayload.raw_json = {};
+  }
+
+  const documentClone = cloneData(context?.document || {});
+  if (documentClone && typeof documentClone === 'object' && context?.fileName) {
+    documentClone.original_filename = context.fileName;
+  }
+
+  let extractionClone = cloneData(context?.extraction || {});
+  if (!extractionClone || typeof extractionClone !== 'object') {
+    extractionClone = {};
+  }
+  if (!extractionClone.fields || typeof extractionClone.fields !== 'object') {
+    extractionClone.fields = cloneData(confirmPayload.fields);
+  }
+
+  assistantSession = {
+    docId: context?.docId || confirmPayload.doc_id || null,
+    docType: context?.docType || confirmPayload.type || null,
+    typeLabel: typeLabelFor(context?.docType || confirmPayload.type),
+    document: documentClone,
+    extraction: extractionClone,
+    confirmPayload,
+    vendor: context?.vendor || null,
+    totalDisplay: context?.totalDisplay || null,
+    summary: context?.summary || null,
+    category: context?.category || null,
+    previewDataUrl: context?.previewDataUrl || null,
+    history: [],
+    confirmed: false,
+  };
+}
+
+function applyAssistantUpdates(updates){
+  if (!assistantSession || !updates || typeof updates !== 'object') return;
+  const ctx = assistantSession;
+
+  if (updates.doc_type) {
+    ctx.docType = updates.doc_type;
+    ctx.typeLabel = typeLabelFor(updates.doc_type);
+    if (ctx.confirmPayload) {
+      ctx.confirmPayload.type = updates.doc_type;
+    }
+    if (String(updates.doc_type).toLowerCase() !== 'receipt') {
+      ctx.previewDataUrl = null;
+    }
+  }
+
+  if (updates.doc_id && typeof updates.doc_id === 'string') {
+    if (ctx.docId && ctx.docId !== updates.doc_id) {
+      ctx.previewDataUrl = null;
+    }
+    ctx.docId = updates.doc_id;
+    if (ctx.confirmPayload) {
+      ctx.confirmPayload.doc_id = updates.doc_id;
+    }
+  }
+
+  if (updates.fields && typeof updates.fields === 'object') {
+    if (!ctx.confirmPayload) {
+      ctx.confirmPayload = { doc_id: ctx.docId || null, fields: {} };
+    }
+    if (!ctx.confirmPayload.raw_json || typeof ctx.confirmPayload.raw_json !== 'object') {
+      ctx.confirmPayload.raw_json = {};
+    }
+    ctx.confirmPayload.fields = mergeObjects(ctx.confirmPayload.fields || {}, updates.fields);
+
+    if (!ctx.extraction || typeof ctx.extraction !== 'object') {
+      ctx.extraction = {};
+    }
+    ctx.extraction.fields = mergeObjects(ctx.extraction.fields || {}, updates.fields);
+
+    const entityUpdate = updates.fields.vendor || updates.fields.merchant;
+    if (typeof entityUpdate === 'string' && entityUpdate.trim()) {
+      ctx.vendor = entityUpdate.trim();
+    }
+    if (typeof updates.fields.total === 'number' && !Number.isNaN(updates.fields.total)) {
+      ctx.totalDisplay = formatMoney(Number(updates.fields.total));
+    }
+    if (typeof updates.fields.summary === 'string' && updates.fields.summary.trim()) {
+      ctx.summary = updates.fields.summary.trim();
+    }
+    if (typeof updates.fields.category === 'string' && updates.fields.category.trim()) {
+      ctx.category = updates.fields.category.trim();
+    }
+  }
+
+  if (updates.raw_json && typeof updates.raw_json === 'object' && ctx.confirmPayload) {
+    ctx.confirmPayload.raw_json = mergeObjects(ctx.confirmPayload.raw_json || {}, updates.raw_json);
+  }
+
+  if (typeof updates.confidence === 'number' && ctx.confirmPayload) {
+    ctx.confirmPayload.confidence = updates.confidence;
+  }
+}
+
+function setChatBusyState(busy){
+  chatBusy = busy;
+  if (chatSend) {
+    chatSend.disabled = !!busy;
+  }
+  chatForm.classList.toggle('pending', !!busy);
 }
 
 function showModal({title, body, actions=[]}){
@@ -2294,6 +2594,9 @@ function addActionButtons(actions){
     b.addEventListener("click", (e) => {
       e.preventDefault();
       b.disabled = true;
+      if (a.label && assistantSession) {
+        appendUserMessage(a.label);
+      }
       try { a.handler?.(); } finally { row.remove(); }
     });
     row.appendChild(b);
@@ -2321,27 +2624,74 @@ async function confirmRecord(payload){
 }
 
 async function confirmAdd(docId, options = {}){
-  const baseId = docId || options?.payload?.doc_id;
-  if (!baseId){
-    pushMsg("I don’t have a document id to confirm. Try re-uploading.", "system");
+  const sessionMatches = assistantSession && (assistantSession.docId === docId || assistantSession.confirmPayload?.doc_id === docId);
+  const basePayload = options?.payload && typeof options.payload === 'object'
+    ? { ...options.payload }
+    : sessionMatches
+      ? cloneData(assistantSession.confirmPayload)
+      : { doc_id: docId };
+
+  const baseId = docId || basePayload?.doc_id;
+  if (!baseId) {
+    appendAssistantMessage("I don’t have a document id to confirm. Try re-uploading.");
     return;
   }
 
-  const payload = options?.payload && typeof options.payload === 'object'
-    ? { ...options.payload, doc_id: options.payload.doc_id || baseId }
-    : { doc_id: baseId };
+  basePayload.doc_id = baseId;
+
+  const fields = basePayload.fields && typeof basePayload.fields === 'object' ? basePayload.fields : {};
+  const vendorName = options.vendor
+    ?? (sessionMatches ? assistantSession.vendor : null)
+    ?? fields.vendor
+    ?? fields.merchant
+    ?? null;
+  const totalDisplay = options.totalDisplay
+    ?? (sessionMatches ? assistantSession.totalDisplay : null)
+    ?? (typeof fields.total === 'number' && !Number.isNaN(fields.total) ? formatMoney(Number(fields.total)) : null);
+  const category = sessionMatches ? assistantSession.category : (typeof fields.category === 'string' && fields.category.trim() ? fields.category : null);
 
   try {
-    await confirmRecord(payload);
+    await confirmRecord(basePayload);
 
-    const details = [`Stored as ${payload.doc_id} in the database ✅`];
-    if (options.vendor) {
-      details.push(`Vendor: ${options.vendor}`);
+    if (sessionMatches && assistantSession.docType === 'receipt') {
+      const previewDataUrl = assistantSession.previewDataUrl;
+      if (previewDataUrl && window.__sfcReceipts && typeof window.__sfcReceipts.storePreview === 'function') {
+        try {
+          window.__sfcReceipts.storePreview(baseId, previewDataUrl);
+        } catch (err) {
+          console.warn('Failed to store receipt preview', err);
+        }
+      }
+      if (window.__sfcReceipts && typeof window.__sfcReceipts.refresh === 'function') {
+        try {
+          await window.__sfcReceipts.refresh({ showLoading: false });
+        } catch (err) {
+          console.warn('Failed to refresh receipts after confirm', err);
+        }
+      }
     }
-    if (options.totalDisplay) {
-      details.push(`Total: ${options.totalDisplay}`);
+
+    if (sessionMatches) {
+      assistantSession.confirmed = true;
+      assistantSession.confirmPayload = basePayload;
+      assistantSession.docId = baseId;
+      if (vendorName) assistantSession.vendor = vendorName;
+      if (totalDisplay) assistantSession.totalDisplay = totalDisplay;
+      if (category) assistantSession.category = category;
     }
-    pushMsg(details.join('\n'), "system");
+
+    const entityLabel = sessionMatches && assistantSession.docType === 'receipt' ? 'Merchant' : 'Vendor';
+    const details = [`Stored as ${baseId} in the database ✅`];
+    if (vendorName) {
+      details.push(`${entityLabel}: ${vendorName}`);
+    }
+    if (totalDisplay) {
+      details.push(`Total: ${totalDisplay}`);
+    }
+    if (category) {
+      details.push(`Category: ${category}`);
+    }
+    appendAssistantMessage(details.join('\n'));
 
     if (typeof loadAP === 'function') {
       try {
